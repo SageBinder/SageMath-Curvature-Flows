@@ -55,7 +55,6 @@ def splines_to_angular_momentum(x_0, y_0, x_1, y_1, dt, srange=(_sage_const_0 ,_
     def v(z): return vector([v_x(z), v_y(z)])
     def w(z): return v(z).norm() * sin(theta(v(z), vector([x_0(z), y_0(z)]))) / sqrt(x_0(z)**_sage_const_2  + y_0(z)**_sage_const_2 ) # |v| * sin(theta) / r
     integrand = lambda z: w(z) * (x_0(z)**_sage_const_2  + y_0(z)**_sage_const_2 ) # w * r^2
-    # integrand = lambda z: (v_x(z)*sin(atan2(x_0(z), y_0(z))) + v_y(z)*cos(atan2(x_0(z), y_0(z)))) * (x_0(z)^2 + y_0(z)^2)
     angular_momentum = numerical_integral(integrand, srange[_sage_const_0 ], srange[_sage_const_1 ])[_sage_const_0 ] # int_S w * r^2 ds
     return angular_momentum
 
@@ -73,10 +72,10 @@ def splines_from_curvature_fix_center(kappa, s, srange=(_sage_const_0 ,_sage_con
 __tmp__=var("s,a"); kappa = symbolic_expression(_sage_const_1 /_sage_const_3  + sin(s) + _sage_const_3 /a * sin(_sage_const_3 *s)).function(s,a)
 
 plots = []
-unrotated_plots = []
+rotation_removed_plots = []
 splines = []
 space, dt = np.linspace(_sage_const_1 , _sage_const_15 , _sage_const_50 , retstep=True)
-total_theta = _sage_const_0 
+total_counterrotation = _sage_const_0 
 for a in space:
     print(f"Calculating curve for a = {a}...")
     x, y = splines_from_curvature_fix_center(kappa(s, a), s, theta_0=_sage_const_0 , srange=(_sage_const_0 , _sage_const_6 *pi))
@@ -87,23 +86,31 @@ for a in space:
         I = splines_to_moment(x, y, srange=(_sage_const_0 , _sage_const_6 *pi))
         angular_velocity = angular_momentum / I
         dtheta = angular_velocity * dt
-        total_theta += dtheta
+        total_counterrotation += dtheta
         print(f"dtheta: {dtheta}")
-        R = matrix([[cos(total_theta), -sin(total_theta)], [sin(total_theta), cos(total_theta)]])
+        R = matrix([[cos(total_counterrotation), -sin(total_counterrotation)], [sin(total_counterrotation), cos(total_counterrotation)]])
     f = lambda z: R * vector([x(z), y(z)])
-    # splines.append((lambda z: f(z)[0], lambda z: f(z)[1]))
     splines.append((x, y))
 
-    plots.append(parametric_plot((lambda z: f(z)[_sage_const_0 ], lambda z: f(z)[_sage_const_1 ]), (_sage_const_0 , _sage_const_6 *pi), color='black', axes=True))
-    unrotated_plots.append(parametric_plot((x, y), (_sage_const_0 , _sage_const_6 *pi), color='red', axes=True))
-
-
+    rotation_removed_plots.append(parametric_plot((lambda z: f(z)[_sage_const_0 ], lambda z: f(z)[_sage_const_1 ]), (_sage_const_0 , _sage_const_6 *pi), color='black', axes=True))
+    plots.append(parametric_plot((x, y), (_sage_const_0 , _sage_const_6 *pi), color='red', axes=True))
 
 
 print("Animating...")
-a = animate([plot + unrotated_plot for plot, unrotated_plot in zip(plots, unrotated_plots)], xmin=-_sage_const_4 , xmax=_sage_const_4 , ymin=-_sage_const_4 , ymax=_sage_const_4 )
+a_both = animate([rotation_removed_plot + plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-_sage_const_4 , xmax=_sage_const_4 , ymin=-_sage_const_4 , ymax=_sage_const_4 )
+a_with_rotation = animate([plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-_sage_const_4 , xmax=_sage_const_4 , ymin=-_sage_const_4 , ymax=_sage_const_4 )
+a_rotation_removed = animate([rotation_removed_plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-_sage_const_4 , xmax=_sage_const_4 , ymin=-_sage_const_4 , ymax=_sage_const_4 )
+
 print("Saving...")
-a.gif(savefile="closed_curve_no_rotation.gif", delay=_sage_const_12 , show_path=True)
+
+a_both.gif(savefile="closed_curve_rotation_and_no_rotation.gif", delay=_sage_const_12 , show_path=True)
+a_with_rotation.gif(savefile="closed_curve_with_rotation.gif", delay=_sage_const_12 , show_path=True)
+a_rotation_removed.gif(savefile="closed_curve_rotation_removed.gif", delay=_sage_const_12 , show_path=True)
+
+a_both.gif(savefile="closed_curve_rotation_and_no_rotation_fast.gif", delay=_sage_const_4 , show_path=True)
+a_with_rotation.gif(savefile="closed_curve_with_rotation_fast.gif", delay=_sage_const_4 , show_path=True)
+a_rotation_removed.gif(savefile="closed_curve_rotation_removed_fast.gif", delay=_sage_const_4 , show_path=True)
+
 
 # c1 = 1
 # c2 = 0.2
