@@ -42,11 +42,62 @@ def spline_avg(f, srange):
     return f.definite_integral(srange[0], srange[1]) / (srange[1] - srange[0])
 
 
+def splines_to_angular_momentum(x_0, y_0, x_1, y_1, dt, srange=(0,1)):
+    def theta(a, b): return arccos(a.inner_product(b) / (a.norm() * b.norm()))
+    def v_x(z): return (x_0(z) - x_1(z)) / dt
+    def v_y(z): return (y_0(z) - y_1(z)) / dt
+    def v(z): return vector([v_x(z), v_y(z)])
+    def w(z): return v(z).norm() * sin(theta(v(z), vector([x_0(z), y_0(z)]))) / sqrt(x_0(z)^2 + y_0(z)^2) # |v| * sin(theta) / r
+    integrand = lambda z: w(z) * (x_0(z)^2 + y_0(z)^2) # w * r^2
+    # integrand = lambda z: (v_x(z)*sin(atan2(x_0(z), y_0(z))) + v_y(z)*cos(atan2(x_0(z), y_0(z)))) * (x_0(z)^2 + y_0(z)^2)
+    angular_momentum = numerical_integral(integrand, srange[0], srange[1])[0] # int_S w * r^2 ds
+    return angular_momentum
+
+
+def splines_to_moment(x, y, srange=(0,1)):
+    return numerical_integral(lambda z: (x(z)^2 + y(z)^2), srange[0], srange[1])[0]
+
+
 def splines_from_curvature_fix_center(kappa, s, srange=(0,1), theta_0=0, x_0=0, y_0=0, center=(0,0), step=0.1):
     x, y = splines_from_curvature(kappa, s, srange, theta_0, x_0, y_0, step)
     x_bar = spline_avg(x, srange)
     y_bar = spline_avg(y, srange)
     return (lambda z: x(z) - x_bar, lambda z: y(z) - y_bar)
+
+kappa(s, a) = 1/3 + sin(s) + 3/a * sin(3*s)
+
+plots = []
+unrotated_plots = []
+splines = []
+space, dt = np.linspace(1, 15, 50, retstep=True)
+total_theta = 0
+for a in space:
+    print(f"Calculating curve for a = {a}...")
+    x, y = splines_from_curvature_fix_center(kappa(s, a), s, theta_0=0, srange=(0, 6*pi))
+
+    R = matrix.identity(2)
+    if len(splines) >= 1:
+        angular_momentum = splines_to_angular_momentum(splines[-1][0], splines[-1][1], x, y, dt, srange=(0, 6*pi))
+        I = splines_to_moment(x, y, srange=(0, 6*pi))
+        angular_velocity = angular_momentum / I
+        dtheta = angular_velocity * dt
+        total_theta += dtheta
+        print(f"dtheta: {dtheta}")
+        R = matrix([[cos(total_theta), -sin(total_theta)], [sin(total_theta), cos(total_theta)]])
+    f = lambda z: R * vector([x(z), y(z)])
+    # splines.append((lambda z: f(z)[0], lambda z: f(z)[1]))
+    splines.append((x, y))
+
+    plots.append(parametric_plot((lambda z: f(z)[0], lambda z: f(z)[1]), (0, 6*pi), color='black', axes=True))
+    unrotated_plots.append(parametric_plot((x, y), (0, 6*pi), color='red', axes=True))
+
+
+
+
+print("Animating...")
+a = animate([plot + unrotated_plot for plot, unrotated_plot in zip(plots, unrotated_plots)], xmin=-4, xmax=4, ymin=-4, ymax=4)
+print("Saving...")
+a.gif(savefile="closed_curve_no_rotation.gif", delay=12, show_path=True)
 
 # c1 = 1
 # c2 = 0.2
@@ -71,18 +122,3 @@ def splines_from_curvature_fix_center(kappa, s, srange=(0,1), theta_0=0, x_0=0, 
 # plots = [spline_plot_from_curvature(kappa(s, a), s, srange=(0, 6*pi), color='red') for a in np.linspace(1, 15, 50)]
 # a = animate(plots, xmin=-5, xmax=3, ymin=-2, ymax=6.5)
 # a.gif(savefile="to_circle.gif", delay=4, show_path=True)
-
-kappa(s, a) = 1/3 + sin(s) + 3/a * sin(3*s)
-
-plots = []
-
-for a in np.linspace(1, 15, 50):
-    print(f"a: {a}")
-    x, y = splines_from_curvature_fix_center(kappa(s, a), s, srange=(0, 6*pi))
-    plots.append(parametric_plot((x, y), (0, 6*pi), color='black', axes=True))
-
-print("Animating...")
-a = animate(plots, xmin=-4, xmax=4, ymin=-4, ymax=4)
-print("Saving...")
-a.gif(savefile="closed_curve.gif", delay=4, show_path=True)
-
