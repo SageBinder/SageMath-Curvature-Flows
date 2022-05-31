@@ -121,7 +121,7 @@ acount = 50
 # plot.save("test.png")
 
 
-_, rotated_splines = flow_curvature(kappa, srange, arange, acount, center=(6,0), step=0.2)
+_, rotated_splines = flow_curvature(kappa, srange, arange, acount, center=(6,0), step=0.05)
 
 def X(phi, psi): return (lambda u, v: phi(v)*cos(u), lambda u, v: phi(v)*sin(u), lambda u, v: psi(v))
 surf_a = animate([parametric_plot3d(X(phi, psi), (0, 2*pi), srange) for phi, psi in rotated_splines])
