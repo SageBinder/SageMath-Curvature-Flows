@@ -22,9 +22,11 @@ def splines_from_curvature(kappa, s, srange=(0,1), theta_0=0, x_0=0, y_0=0, step
     return (x_spline, y_spline)
 
 
-def spline_avg(f, srange):
+def spline_avg(f):
+    a = f.list()[0][0]
+    b = f.list()[-1][0]
     # Subtract 0.001 because for SOME REASON the definite_integral function sometimes returns NaN if you integrate to srange[1]
-    return f.definite_integral(srange[0], srange[1] - 0.001) / (srange[1] - srange[0] - 0.001)
+    return f.definite_integral(a, b) / (b - a)
 
 
 def splines_to_angular_momentum(x_0, y_0, x_1, y_1, dt, srange=(0,1), center=(0,0)):
@@ -62,14 +64,14 @@ def rotate_splines(x, y, theta):
     return (rotated_x_spline, rotated_y_spline)
 
 
-def splines_fix_center(x, y, srange=(0,1), center=(0,0)):
-    x_bar = spline_avg(x, srange)
-    y_bar = spline_avg(y, srange)
+def splines_fix_center(x, y, center=(0,0)):
+    x_bar = spline_avg(x)
+    y_bar = spline_avg(y)
     return (translate_spline(x, -x_bar + center[0]), translate_spline(y, -y_bar + center[1]))
 
 def splines_from_curvature_fix_center(kappa, s, srange=(0,1), theta_0=0, center=(0,0), step=0.1):
     x, y = splines_from_curvature(kappa, s, srange, theta_0, 0, 0, step)
-    return splines_fix_center(x, y, srange, center)
+    return splines_fix_center(x, y, center)
 
 
 def flow_curvature(kappa, srange, arange, acount, theta_0=0, center=(0,0), step=0.1):
@@ -99,7 +101,7 @@ def flow_curvature(kappa, srange, arange, acount, theta_0=0, center=(0,0), step=
             print(f"dtheta: {dtheta}\n")
             
         rotated_x, rotated_y = rotate_splines(x, y, total_counterrotation)
-        rotated_translated_x, rotated_translated_y = splines_fix_center(rotated_x, rotated_y, srange, center)
+        rotated_translated_x, rotated_translated_y = splines_fix_center(rotated_x, rotated_y, center)
         rotated_splines.append((rotated_translated_x, rotated_translated_y))
         splines.append((x, y))
         
