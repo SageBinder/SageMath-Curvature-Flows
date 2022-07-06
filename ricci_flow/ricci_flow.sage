@@ -117,7 +117,7 @@ for i in range(N):
     R = hm_to_ricci_tensor(h, m)
     def R11(rho): return R(rho)[0][0]
     def R22(rho): return R(rho)[1][1]
-    
+
     print(f"Iteration {i}/{N-1}, t = {dt*i}")
     
     h = spline([(rho, h_rho_ - 2*R11(rho)*dt) for rho, h_rho_ in filter(lambda z: z[0] >= eps and z[0] <= pi-eps, h.list())])
@@ -128,8 +128,8 @@ for i in range(N):
 
     sqrt_m = sqrt_spline(m)
 
-    h.append((0, sqrt_m.derivative(0)))
-    h.append((pi, sqrt_m.derivative(pi)))
+    h.append((0, sqrt_m.derivative(0)**2))
+    h.append((pi, sqrt_m.derivative(pi)**2))
 
     x, y = xy_splines_from_hm(h, m, srange, eps=0)
     
