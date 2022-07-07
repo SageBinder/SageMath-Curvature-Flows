@@ -25,7 +25,6 @@ def splines_from_curvature(kappa, s, srange=(0,1), theta_0=0, x_0=0, y_0=0, step
 def spline_avg(f):
     a = f.list()[0][0]
     b = f.list()[-1][0]
-    # Subtract 0.001 because for SOME REASON the definite_integral function sometimes returns NaN if you integrate to srange[1]
     return f.definite_integral(a, b) / (b - a)
 
 
