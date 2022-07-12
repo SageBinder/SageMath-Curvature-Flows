@@ -1,5 +1,8 @@
 import numpy as np
 import os
+import logging
+
+# logging.disable(logging.INFO)
 
 pi = RR.pi()
 
@@ -12,10 +15,10 @@ plot_initial_K = True
 animate_curve = True
 animate_m = True
 animate_h = True
-animate_R = True
-animate_K = True
+animate_R = False
+# animate_K = True
 
-folder_name = "./curve7_anim_all_10000_steps_eps=0.01"
+folder_name = "./Fig3_flow_2"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -33,7 +36,7 @@ def revolve(x, y):
 def xy_splines_from_hm(h, m, srange=(0, pi), step_size=0.1):
     def y(rho):
         if m(rho) < 0:
-            print(f"\tnegative: {rho}, {m(rho)}")
+            logging.debug(f"\tMaking xy splines from hm, encountered negative: ({rho}, {m(rho)}). Returning 0.")
             return 0
         return sqrt(m(rho))
     
@@ -80,8 +83,92 @@ def hm_to_ricci_tensor(h, m, return_K=False, eps=0.1):
     return R if not return_K else (R, K)
 
 
-c3 = 0.766
-c5 = -0.091
+def reparam(h, m, ds=0.1):
+    l_spline_list = [(0, 0)]
+    def l_integrand(s): return sqrt(h(s)) if h(s) > 0 else 0
+    s_space = np.linspace(0, pi, round(pi / ds))
+
+    curr_int = 0
+    for i, curr_s in enumerate(s_space[1:]):
+        sliver = numerical_integral(l_integrand, s_space[i], curr_s)[0]
+        curr_int += sliver
+        l_spline_list.append((curr_s, curr_int))
+
+    l = spline(l_spline_list)
+    l_inv = spline([(b, a) for a, b in l.list()])
+
+    tot_s = l(pi)
+    h_reparam = to_spline(lambda z: (tot_s / pi)^2)
+    m_reparam = spline([(rho, max(0, m(l_inv(rho * tot_s / pi)))) for rho, _ in m.list()])
+
+    return h_reparam, m_reparam
+
+
+def add_cap(h, m):
+    h_capped = spline(h.list())
+    m_capped = spline(m.list())
+
+    m_capped.append((0, 0))
+    m_capped.append((pi, 0))
+
+    sqrt_m = sqrt_spline(m_capped)
+
+    h_capped.append((0, sqrt_m.derivative(0)**2))
+    h_capped.append((pi, sqrt_m.derivative(pi)**2))
+
+    return h_capped, m_capped
+
+
+def euler_step(h, m, dt, rho_space, eps, k_space=None, cap=True):
+    if k_space is None:
+        logging.info("\tComputing Ricci tensor")
+        R = hm_to_ricci_tensor(h, m, eps=eps)
+        def k(rho): return -2*R(rho)
+        k_space = [k(rho) for rho in rho_space]
+    rho_k_space = list(zip(rho_space, k_space))
+
+    logging.info("\tComputing h spline")
+    h_next = spline([(rho, h(rho) + k[0][0]*dt) for rho, k in rho_k_space])
+    logging.info("\tComputing m spline")
+    m_next = spline([(rho, m(rho) + k[1][1]*dt) for rho, k in rho_k_space])
+
+    if cap:
+        h_next, m_next = add_cap(h_next, m_next)
+
+    return h_next, m_next, k_space
+
+
+def rk4_step(h1, m1, dt, eps=0.01, drho=0.01):
+    rho_space = np.linspace(eps, pi-eps, round((pi-2*eps) / drho))
+
+    logging.info("\tRunning rk4 step 1")
+    h2, m2, k1_space = euler_step(h1, m1, dt/2, rho_space, eps)
+
+    logging.info("\n\tRunning rk4 step 2")
+    _, _, k2_space = euler_step(h2, m2, dt/2, rho_space, eps)
+    h3, m3, _ = euler_step(h1, m1, dt/2, rho_space, eps, k_space=k2_space)
+
+    logging.info("\n\tRunning rk4 step 3")
+    _, _, k3_space = euler_step(h3, m3, dt/2, rho_space, eps)
+    h4, m4, _ = euler_step(h1, m1, dt, rho_space, eps, k_space=k3_space)
+    
+    logging.info("\n\tRunning rk4 step 4")
+    _, _, k4_space = euler_step(h4, m4, dt, rho_space, eps)
+
+    k_space = [(k1 + 2*k2 + 2*k3 + k4)/6 for k1, k2, k3, k4 in zip(k1_space, k2_space, k3_space, k4_space)]
+    h_next, m_next, _ = euler_step(h1, m1, dt, rho_space, eps, k_space=k_space)
+
+    logging.info("\n")
+
+    return h_next, m_next
+
+
+# c3 = 0.766
+# c5 = -0.091
+
+c3 = 0.021
+c5 = 0.598
+
 h(rho) = 1
 m(rho) = ((sin(rho) + c3*sin(3*rho) + c5*sin(5*rho))/(1 + 3*c3 + 5*c5))**2
 
@@ -108,11 +195,13 @@ if plot_initial_K:
 
 
 # Ricci flow
-dt = 0.00001
-N = 10001
-plot_gap = 100
+dt = 0.0001
+N = 3001
+plot_gap = 10
+reparam_gap = 4
 space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
-eps = 0.01
+eps = 0.1
+drho = 0.1
 
 print("Running ricci flow...")
 print(f"c3 = {c3}")
@@ -130,42 +219,39 @@ R22_plots = []
 K_plots = []
 
 for i in range(N):
-    print(f"Iteration {i}/{N-1}, t = {dt*i}")
-    print("\tGetting Ricci tensor")
-    R, K = hm_to_ricci_tensor(h, m, return_K=True, eps=eps)
-    def R11(rho): return R(rho)[0][0]
-    def R22(rho): return R(rho)[1][1]
+    try:
+        print(f"\nRK4: Iteration {i}/{N-1}, t = {dt*i}")
+        h, m = rk4_step(h, m, dt, eps=eps, drho=drho)
 
-    print("\tComputing h spline")
-    h = spline([(rho, h_rho_ - 2*R11(rho)*dt) for rho, h_rho_ in filter(lambda z: z[0] >= eps and z[0] <= pi-eps, h.list())])
-    print("\tComputing m spline")
-    m = spline([(rho, m_rho_ - 2*R22(rho)*dt) for rho, m_rho_ in filter(lambda z: z[0] >= eps and z[0] <= pi-eps, m.list())])
+        logging.info("\tGetting x and y splines from h and m splines")
+        x, y = xy_splines_from_hm(h, m, srange)
+        
+        if i % reparam_gap == 0:
+            print("\tReparametrizing...")
+            h, m = reparam(h, m)
 
-    m.append((0, 0))
-    m.append((pi, 0))
-
-    sqrt_m = sqrt_spline(m)
-
-    h.append((0, sqrt_m.derivative(0)**2))
-    h.append((pi, sqrt_m.derivative(pi)**2))
-
-    print("\tGetting xy functions from h and m splines")
-    x, y = xy_splines_from_hm(h, m, srange)
-    
-    if i % plot_gap == 0:
-        print("\tAppending plots")
-        revolved_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange))
-        if animate_curve:
-            curve_plots.append(parametric_plot((x, y), srange))
-        if animate_m:
-            m_plots.append(plot(lambda z: sqrt(m(z)), srange, title="sqrt(m)"))
-        if animate_h:
-            h_plots.append(plot(h, srange, title="h"))
-        if animate_R:
-            R11_plots.append(plot(R11, srange, title="R11"))
-            R22_plots.append(plot(R22, srange, title="R22"))
-        if animate_K:
-            K_plots.append(plot(K, srange, title="K"))
+        if i % plot_gap == 0:
+            print("\tAppending plots")
+            revolved_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange))
+            if animate_curve:
+                curve_plots.append(parametric_plot((x, y), srange))
+            if animate_m:
+                m_plots.append(plot(lambda z: sqrt(m(z)), srange, title="sqrt(m)"))
+            if animate_h:
+                h_plots.append(plot(h, srange, title="h"))
+            if animate_R:
+                R = hm_to_ricci_tensor(h, m)
+                def R11(rho): return R(rho)[0][0]
+                def R22(rho): return R(rho)[1][1]
+                R11_plots.append(plot(R11, srange, title="R11"))
+                R22_plots.append(plot(R22, srange, title="R22"))
+            # if animate_K:
+            #     K_plots.append(plot(K, srange, title="K"))
+    except Exception as e:
+        print(f"Encountered exception on iteration {i}/{N-1}, t = {dt*i}:")
+        print(repr(e))
+        print("Terminating flow.")
+        break
 
 if animate_curve:
     print("Animating curve...")
@@ -189,11 +275,11 @@ if animate_R:
     print("Saving R animation...")
     R11_anim.save(path("R11_anim.gif"), show_path=True)
     R22_anim.save(path("R22_anim.gif"), show_path=True)
-if animate_K:
-    print("Animating K...")
-    K_anim = animate(K_plots)
-    print("Saving K animation...")
-    K_anim.save(path("K_anim.gif"), show_path=True)
+# if animate_K:
+#     print("Animating K...")
+#     K_anim = animate(K_plots)
+#     print("Saving K animation...")
+#     K_anim.save(path("K_anim.gif"), show_path=True)
 
 print("Animating surface flow...")
 a_surf = animate(revolved_plots)
