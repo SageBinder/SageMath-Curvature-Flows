@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import logging
+import time
 
 # logging.disable(logging.INFO)
 
@@ -11,14 +12,15 @@ plot_initial_m = True
 plot_initial_h = True
 plot_initial_R = True
 plot_initial_K = True
+plot_initial_tissot = True
 
-animate_curve = True
-animate_m = True
-animate_h = True
+animate_curve = False
+animate_m = False
+animate_h = False
 animate_R = False
-# animate_K = True
+animate_tissot = True
 
-folder_name = "./Fig3_flow_2"
+folder_name = "./Fig3_flow_tissot_test_3"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -26,6 +28,50 @@ if not os.path.exists(folder_name):
 
 def path(name):
     return os.path.join(folder_name, name)
+
+
+def clamp(x, low, high):
+    return low if x < low else high if x > high else x
+
+
+def tissot(g, urange=(0, 2*pi), vrange=(0, pi), ucount=5, vcount=5, sq_len=0.2):
+    def angle(a, b):
+        return arccos(a.inner_product(b) / (a.norm() * b.norm())) if a.norm() * b.norm() != 0 else 0
+    
+    squares = []
+    transformed_squares = []
+    ellipses = []
+
+    uspace = np.linspace(urange[0], urange[1], ucount)
+    vspace = np.linspace(vrange[0], vrange[1], vcount)
+    space = cartesian_product_iterator([uspace, vspace])
+    for u, v in space:
+        g_curr = g(u, v)
+        eigenvectors = g_curr.eigenvectors_right()
+        eigvec = eigenvectors[0][1][0]
+        k1 = eigenvectors[0][0]
+        if eigenvectors[0][2] == 2:
+            k2 = k1
+        else:
+            k2 = eigenvectors[1][0]
+        
+        square = matrix([[0, -sq_len/2, 0, sq_len/2], [-sq_len/2, 0, sq_len/2, 0]])
+        cross = vector([eigvec[0], eigvec[1], 0]).cross_product(vector([1, 0, 0]))
+        theta = arctan2(cross[2], eigvec.dot_product(vector([1, 0])))
+        R = matrix([[cos(theta), sin(theta)], [-sin(theta), cos(theta)]])
+        
+        translate = matrix([[u, u, u, u], [v, v, v, v]])
+        transformed = g_curr * R * square
+        
+        squares.append((R * square) + translate)
+        transformed_squares.append(transformed + translate)
+        ellipses.append((u, v, abs(k1*sq_len/2), abs(k2*sq_len/2), -theta))
+
+    return squares, transformed_squares, ellipses
+
+
+def make_g(h, m):
+    return lambda theta, rho: matrix([[h(rho), 0], [0, m(rho)]])
 
 
 def revolve(x, y):
@@ -74,8 +120,7 @@ def hm_to_ricci_tensor(h, m, return_K=False, eps=0.1):
         return -sqrt_m.derivative(rho, order=2) / sqrt_m(rho)
 
     def R(rho):
-        if rho <= eps or rho >= pi - eps:
-            rho = eps
+        rho = clamp(rho, eps, pi-eps)
         R11 = K(rho) + ((m.derivative(rho) * h.derivative(rho)) / (4 * m(rho) * h(rho)))
         R22 = (R11 / h(rho)) * m(rho)
         return matrix([[R11, 0], [0, R22]])
@@ -90,8 +135,7 @@ def reparam(h, m, ds=0.1):
 
     curr_int = 0
     for i, curr_s in enumerate(s_space[1:]):
-        sliver = numerical_integral(l_integrand, s_space[i], curr_s)[0]
-        curr_int += sliver
+        curr_int += numerical_integral(l_integrand, s_space[i], curr_s)[0]
         l_spline_list.append((curr_s, curr_int))
 
     l = spline(l_spline_list)
@@ -119,7 +163,7 @@ def add_cap(h, m):
     return h_capped, m_capped
 
 
-def euler_step(h, m, dt, rho_space, eps, k_space=None, cap=True):
+def euler_step(h, m, dt, rho_space, eps, k_space=None, cap=True, return_R=False):
     if k_space is None:
         logging.info("\tComputing Ricci tensor")
         R = hm_to_ricci_tensor(h, m, eps=eps)
@@ -135,14 +179,14 @@ def euler_step(h, m, dt, rho_space, eps, k_space=None, cap=True):
     if cap:
         h_next, m_next = add_cap(h_next, m_next)
 
-    return h_next, m_next, k_space
+    return (h_next, m_next, k_space, R) if return_R else (h_next, m_next, k_space)
 
 
 def rk4_step(h1, m1, dt, eps=0.01, drho=0.01):
     rho_space = np.linspace(eps, pi-eps, round((pi-2*eps) / drho))
 
     logging.info("\tRunning rk4 step 1")
-    h2, m2, k1_space = euler_step(h1, m1, dt/2, rho_space, eps)
+    h2, m2, k1_space, R = euler_step(h1, m1, dt/2, rho_space, eps, return_R=True)
 
     logging.info("\n\tRunning rk4 step 2")
     _, _, k2_space = euler_step(h2, m2, dt/2, rho_space, eps)
@@ -160,8 +204,13 @@ def rk4_step(h1, m1, dt, eps=0.01, drho=0.01):
 
     logging.info("\n")
 
-    return h_next, m_next
+    return h_next, m_next, R
 
+
+tissot_eps = 0.5
+tissot_theta_padding = 1
+tissot_rho_padding = 0.5
+tissot_const = 0.5
 
 # c3 = 0.766
 # c5 = -0.091
@@ -192,6 +241,12 @@ if plot_initial_R:
     plot(R22, srange, title="R22").save(path("initial_R22.png"))
 if plot_initial_K:
     plot(K, srange, marker=",", linestyle="", title="K").save(path("initial_K.png"))
+if plot_initial_tissot:
+    _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1)
+    tissot_plot = Graphics()
+    tissot_scale = tissot_const / (2 * m(pi/2))
+    tissot_plot += sum([ellipse((x, y), k1 * tissot_scale, k2 * tissot_scale, theta, axes=False) for x, y, k1, k2, theta in ellipses])
+    tissot_plot.save(path("initial_tissot.png"), xmin=-tissot_theta_padding, xmax=2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=pi + tissot_rho_padding)
 
 
 # Ricci flow
@@ -202,6 +257,8 @@ reparam_gap = 4
 space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
 eps = 0.1
 drho = 0.1
+
+cm = colormaps.RdYlGn
 
 print("Running ricci flow...")
 print(f"c3 = {c3}")
@@ -216,23 +273,29 @@ m_plots = []
 h_plots = []
 R11_plots = []
 R22_plots = []
-K_plots = []
+tissot_plots = []
 
 for i in range(N):
     try:
         print(f"\nRK4: Iteration {i}/{N-1}, t = {dt*i}")
-        h, m = rk4_step(h, m, dt, eps=eps, drho=drho)
-
-        logging.info("\tGetting x and y splines from h and m splines")
-        x, y = xy_splines_from_hm(h, m, srange)
+        h, m, R = rk4_step(h, m, dt, eps=eps, drho=drho)
         
         if i % reparam_gap == 0:
             print("\tReparametrizing...")
             h, m = reparam(h, m)
 
         if i % plot_gap == 0:
+            logging.info("\tGetting x and y splines from h and m splines")
+            x, y = xy_splines_from_hm(h, m, srange, step_size=0.1)
+
+            def c(theta, rho, eps=0.1):
+                rho = clamp(rho, eps, pi-eps)
+                K = y.derivative(rho, order=2) / y(rho)
+                sigmoid = 1 / (1 + exp(-K))
+                return sigmoid
+            
             print("\tAppending plots")
-            revolved_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange))
+            revolved_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange, plot_points=[20, 80], color=(c, cm)))
             if animate_curve:
                 curve_plots.append(parametric_plot((x, y), srange))
             if animate_m:
@@ -240,13 +303,17 @@ for i in range(N):
             if animate_h:
                 h_plots.append(plot(h, srange, title="h"))
             if animate_R:
-                R = hm_to_ricci_tensor(h, m)
                 def R11(rho): return R(rho)[0][0]
                 def R22(rho): return R(rho)[1][1]
                 R11_plots.append(plot(R11, srange, title="R11"))
                 R22_plots.append(plot(R22, srange, title="R22"))
-            # if animate_K:
-            #     K_plots.append(plot(K, srange, title="K"))
+            if animate_tissot:
+                tissot_scale = tissot_const / (2 * m(pi/2))
+                _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1)
+                tissot_plot = Graphics()
+                tissot_plot += sum([ellipse((x, y), k1 * tissot_scale, k2 * tissot_scale, theta, axes=True) for x, y, k1, k2, theta in ellipses])
+                tissot_plot.set_axes_range(xmin=-tissot_theta_padding, xmax=2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=pi + tissot_rho_padding)
+                tissot_plots.append(tissot_plot)
     except Exception as e:
         print(f"Encountered exception on iteration {i}/{N-1}, t = {dt*i}:")
         print(repr(e))
@@ -255,33 +322,75 @@ for i in range(N):
 
 if animate_curve:
     print("Animating curve...")
+    start = time.time()
     curve_anim = animate(curve_plots)
+    end = time.time()
+    print(f"Done with animation in {end - start} seconds.")
+
     print("Saving curve animation...")
+    start = time.time()
     curve_anim.save(path("curve_flow.gif"), show_path=True)
+    end = time.time()
+    print(f"Saved animation in {end - start} seconds.")
 if animate_m:
     print("Animating sqrt(m)...")
+    start = time.time()
     m_anim = animate(m_plots)
+    end = time.time()
+    print(f"Done with animation in {end - start} seconds.")
+
     print("Saving sqrt(m) animation...")
+    start = time.time()
     m_anim.save(path("sqrt_m_anim.gif"), show_path=True)
+    end = time.time()
+    print(f"Saved animation in {end - start} seconds.")
 if animate_h:
     print("Animating h...")
+    start = time.time()
     h_anim = animate(h_plots)
+    end = time.time()
+    print(f"Done with animation in {end - start} seconds.")
+
     print("Saving h animation...")
+    start = time.time()
     h_anim.save(path("h_anim.gif"), show_path=True)
+    end = time.time()
+    print(f"Saved animation in {end - start} seconds.")
 if animate_R:
     print("Animating R...")
+    start = time.time()
     R11_anim = animate(R11_plots)
     R22_anim = animate(R22_plots)
+    end = time.time()
+    print(f"Done with animation in {end - start} seconds.")
+
     print("Saving R animation...")
+    start = time.time()
     R11_anim.save(path("R11_anim.gif"), show_path=True)
     R22_anim.save(path("R22_anim.gif"), show_path=True)
-# if animate_K:
-#     print("Animating K...")
-#     K_anim = animate(K_plots)
-#     print("Saving K animation...")
-#     K_anim.save(path("K_anim.gif"), show_path=True)
+    end = time.time()
+    print(f"Saved animation in {end - start} seconds.")
+if animate_tissot:
+    print("Animating Tissot...")
+    start = time.time()
+    tissot_anim = animate(tissot_plots)
+    end = time.time()
+    print(f"Done with animation in {end - start} seconds.")
+
+    print("Saving Tissot animation...")
+    start = time.time()
+    tissot_anim.save(path("tissot_anim.gif"), show_path=True)
+    end = time.time()
+    print(f"Saved animation in {end - start} seconds.")
 
 print("Animating surface flow...")
+start = time.time()
 a_surf = animate(revolved_plots)
+end = time.time()
+print(f"Done with animation in {end - start} seconds.")
+
 print("Saving surface flow...")
+start = time.time()
 a_surf.save(path("surf_flow.html"), online=True, show_path=True)
+end = time.time()
+print(f"Saved animation in {end - start} seconds.")
