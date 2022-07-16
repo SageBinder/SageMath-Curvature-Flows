@@ -20,15 +20,18 @@ plot_initial_R = True
 plot_initial_K = True
 plot_initial_tissot = True
 
-animate_curve = False
-animate_m = False
-animate_h = False
-animate_R = False
+animate_curve = True
+animate_m = True
+animate_h = True
+animate_R = True
 animate_tissot = True
+animate_gauss_colored_surface = True
+
+cm = colormaps.RdYlGn # Color map for coloring the surface by Gauss curvature
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./Fig3_flow_tissot_test_3"
+folder_name = "./Fig3_flow_animate_all_test"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -401,8 +404,6 @@ space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
 eps = 0.1
 drho = 0.1
 
-cm = colormaps.RdYlGn
-
 print("Running ricci flow...")
 print(f"c3 = {c3}")
 print(f"c5 = {c5}")
@@ -412,6 +413,7 @@ print(f"plot_gap = {plot_gap}")
 
 curve_plots = []
 revolved_plots = []
+revolved_gauss_colored_plots = []
 m_plots = []
 h_plots = []
 R11_plots = []
@@ -430,15 +432,16 @@ for i in range(N):
         if i % plot_gap == 0:
             logging.info("\tGetting x and y splines from h and m splines")
             x, y = xy_splines_from_hm(h, m, srange, step_size=0.1)
-
-            def c(theta, rho, eps=0.1):
-                rho = clamp(rho, eps, pi-eps)
-                K = y.derivative(rho, order=2) / y(rho)
-                sigmoid = 1 / (1 + exp(-K))
-                return sigmoid
             
             print("\tAppending plots")
-            revolved_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange, plot_points=[20, 80], color=(c, cm)))
+            revolved_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange))
+            if animate_gauss_colored_surface:
+                def c(theta, rho, eps=0.1):
+                    rho = clamp(rho, eps, pi-eps)
+                    K = y.derivative(rho, order=2) / y(rho)
+                    sigmoid = 1 / (1 + exp(-K))
+                    return sigmoid
+                revolved_gauss_colored_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange, plot_points=[20, 80], color=(c, cm)))
             if animate_curve:
                 curve_plots.append(parametric_plot((x, y), srange))
             if animate_m:
@@ -446,10 +449,8 @@ for i in range(N):
             if animate_h:
                 h_plots.append(plot(h, srange, title="h"))
             if animate_R:
-                def R11(rho): return R(rho)[0][0]
-                def R22(rho): return R(rho)[1][1]
-                R11_plots.append(plot(R11, srange, title="R11"))
-                R22_plots.append(plot(R22, srange, title="R22"))
+                R11_plots.append(plot(lambda rho: R(rho)[0][0], srange, title="R11"))
+                R22_plots.append(plot(lambda rho: R(rho)[1][1], srange, title="R22"))
             if animate_tissot:
                 tissot_scale = tissot_const / m(pi/2)
                 _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1)
@@ -460,80 +461,38 @@ for i in range(N):
     except Exception as e:
         print(f"Encountered exception on iteration {i}/{N-1}, t = {dt*i}:")
         print(repr(e))
-        print("Terminating flow.")
+        print("Terminating flow.\n")
         break
 
+
+def save_animation(plots, label, filename, show_path=True, online=None):
+    print(f"Animating {label}...")
+    start = time.time()
+    anim = animate(plots)
+    end = time.time()
+    print(f"Done with animation in {end - start} seconds.")
+
+    print(f"Saving {label} animation...")
+    start = time.time()
+    if online is not None:
+        anim.save(path(filename), show_path=show_path, online=online)
+    else:
+        anim.save(path(filename), show_path=show_path)
+    end = time.time()
+    print(f"Saved animation in {end - start} seconds.\n")
+
 if animate_curve:
-    print("Animating curve...")
-    start = time.time()
-    curve_anim = animate(curve_plots)
-    end = time.time()
-    print(f"Done with animation in {end - start} seconds.")
-
-    print("Saving curve animation...")
-    start = time.time()
-    curve_anim.save(path("curve_flow.gif"), show_path=True)
-    end = time.time()
-    print(f"Saved animation in {end - start} seconds.")
+    save_animation(curve_plots, "curve", "curve_flow.gif")
 if animate_m:
-    print("Animating sqrt(m)...")
-    start = time.time()
-    m_anim = animate(m_plots)
-    end = time.time()
-    print(f"Done with animation in {end - start} seconds.")
-
-    print("Saving sqrt(m) animation...")
-    start = time.time()
-    m_anim.save(path("sqrt_m_anim.gif"), show_path=True)
-    end = time.time()
-    print(f"Saved animation in {end - start} seconds.")
+    save_animation(m_plots, "sqrt(m)", "sqrt_m_anim.gif")
 if animate_h:
-    print("Animating h...")
-    start = time.time()
-    h_anim = animate(h_plots)
-    end = time.time()
-    print(f"Done with animation in {end - start} seconds.")
-
-    print("Saving h animation...")
-    start = time.time()
-    h_anim.save(path("h_anim.gif"), show_path=True)
-    end = time.time()
-    print(f"Saved animation in {end - start} seconds.")
+    save_animation(h_plots, "h", "h_anim.gif")
 if animate_R:
-    print("Animating R...")
-    start = time.time()
-    R11_anim = animate(R11_plots)
-    R22_anim = animate(R22_plots)
-    end = time.time()
-    print(f"Done with animation in {end - start} seconds.")
-
-    print("Saving R animation...")
-    start = time.time()
-    R11_anim.save(path("R11_anim.gif"), show_path=True)
-    R22_anim.save(path("R22_anim.gif"), show_path=True)
-    end = time.time()
-    print(f"Saved animation in {end - start} seconds.")
+    save_animation(R11_plots, "R11", "R11_anim.gif")
+    save_animation(R22_plots, "R22", "R22_anim.gif")
 if animate_tissot:
-    print("Animating Tissot...")
-    start = time.time()
-    tissot_anim = animate(tissot_plots)
-    end = time.time()
-    print(f"Done with animation in {end - start} seconds.")
+    save_animation(tissot_plots, "Tissot", "tissot_anim.gif")
+if animate_gauss_colored_surface:
+    save_animation(revolved_gauss_colored_plots, "Gauss-colored surface flow", "gauss_colored_surf_flow.html", online=True)
 
-    print("Saving Tissot animation...")
-    start = time.time()
-    tissot_anim.save(path("tissot_anim.gif"), show_path=True)
-    end = time.time()
-    print(f"Saved animation in {end - start} seconds.")
-
-print("Animating surface flow...")
-start = time.time()
-a_surf = animate(revolved_plots)
-end = time.time()
-print(f"Done with animation in {end - start} seconds.")
-
-print("Saving surface flow...")
-start = time.time()
-a_surf.save(path("surf_flow.html"), online=True, show_path=True)
-end = time.time()
-print(f"Saved animation in {end - start} seconds.")
+save_animation(revolved_plots, "surface flow", "surf_flow.html", online=True)
