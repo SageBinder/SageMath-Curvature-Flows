@@ -1,3 +1,9 @@
+# This code for visualizing Ricci flow in the special case of surfaces of revolution of genus 0
+# was written based on the work in following paper by Rubinstein, J. Hyam and Sinclair, Robert:
+
+# Rubinstein, J. Hyam and Sinclair, Robert. (2004). "Visualization Ricci Flow of Manifolds of Revolution".
+#     10.48550/ARXIV.MATH/0406189. https://arxiv.org/abs/math/0406189.
+
 import numpy as np
 import os
 import logging
@@ -20,6 +26,8 @@ animate_h = False
 animate_R = False
 animate_tissot = True
 
+# Folder in which all output will be saved.
+# WARNING: The program will overwrite previously saved output.
 folder_name = "./Fig3_flow_tissot_test_3"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
@@ -27,15 +35,34 @@ if not os.path.exists(folder_name):
     os.mkdir(folder_name)
 
 def path(name):
+    """Join a desired filename with folder_name."""
     return os.path.join(folder_name, name)
 
 
 def clamp(x, low, high):
+    """Clamp x between low and high."""
     return low if x < low else high if x > high else x
 
 
 def tissot(g, urange=(0, 2*pi), vrange=(0, pi), ucount=5, vcount=5, sq_len=0.2):
+    """Generate a Tissot indicatrix visualization for the metric g.
+    
+    Args:
+        g (func : urange × vrange → M_2(ℝ)): A function which takes in two inputs, u and v,
+            and returns a 2×2 matrix with real entries which represents the metric at (u, v)
+        urange ((float, float), optional): Range of u across which to take samples of g.
+        vrange ((float, float), optional): Range of v across which to take samples of g.
+        ucount (int, optional): Number of samples of g in the u direction.
+        vcount (int, optional): Numer of samples of g in the v direction.
+        sq_len (float, optional): Size of the initial square to which g is applied.
+    
+    Returns:
+        (ndarray, ndarray, ndarray): A tuple containing, respectively, the coordinates for the
+            initial squares, the coordinates for the transformed squares, and the coordinates
+            for the ellipses.
+    """
     def angle(a, b):
+        # Compute the angle between vectors a and b.
         return arccos(a.inner_product(b) / (a.norm() * b.norm())) if a.norm() * b.norm() != 0 else 0
     
     squares = []
@@ -71,15 +98,45 @@ def tissot(g, urange=(0, 2*pi), vrange=(0, pi), ucount=5, vcount=5, sq_len=0.2):
 
 
 def make_g(h, m):
+    """Create a metric based on splines h and m, as in the Rubinstein and Sinclair paper.
+    
+    Args:
+        h (spline): h spline (numeric approximation for h in the Rubinstein and Sinclair paper)
+        m (spline): m spline (numeric approximation for m in the Rubinstein and Sinclair paper)
+    
+    Returns:
+        func : [0, 2*pi] × [0, pi] → M_2(ℝ): Given values for theta and rho, return the metric at that point.
+    """
     return lambda theta, rho: matrix([[h(rho), 0], [0, m(rho)]])
 
 
 def revolve(x, y):
-    # x/y are reversed to rotate around z axis
+    """Create a 3-tuple which can be given to SageMath's ParametricPlot3D function to plot the revolution of
+    the given xy curve.
+    
+    Args:
+        x (spline): x values of the curve of revolution
+        y (spline): y values of the curve of revolution
+    
+    Returns:
+        (func, func, func): Tuple which can be given to ParametricPlot3D.
+    """
     return (lambda u, v: y(v)*cos(u), lambda u, v: y(v)*sin(u), lambda u, v: x(v))
 
 
 def xy_splines_from_hm(h, m, srange=(0, pi), step_size=0.1):
+    """Obtain splines for x and y given h and m, based on the equation 3—2 in the Rubinstein and Sinclair paper.
+    
+    Args:
+        h (spline): h spline (numeric approximation for h in the Rubinstein and Sinclair paper)
+        m (spline): m spline (numeric approximation for m in the Rubinstein and Sinclair paper)
+        srange ((float, float), optional): Domain on which to compute the x and y splines
+        step_size (float, optional): Approximate step size to take along srange
+    
+    Returns:
+        (spline, spline): A tuple containing, respectively, the spline approximation for x,
+            and the spline approximation for y. The domain for both splines is srange.
+    """
     def y(rho):
         if m(rho) < 0:
             logging.debug(f"\tMaking xy splines from hm, encountered negative: ({rho}, {m(rho)}). Returning 0.")
@@ -106,14 +163,29 @@ def xy_splines_from_hm(h, m, srange=(0, pi), step_size=0.1):
 
 
 def sqrt_spline(f):
+    """Compute the square root of a spline."""
     return spline([(x, sqrt(y)) for x, y in f])
 
 
 def to_spline(f, srange=(0, pi), step_size=0.01):
+    """Take a function and return a spline by sampling the function along srange."""
     return spline([(s, f(s)) for s in np.linspace(srange[0], srange[1], round((srange[1] - srange[0]) / step_size))])
 
 
 def hm_to_ricci_tensor(h, m, return_K=False, eps=0.1):
+    """Compute the Ricci tensor given h and m according to equation (3—3) in the Rubinstein and Sinclair paper.
+    
+    Args:
+        h (spline): h spline (numeric approximation for h in the Rubinstein and Sinclair paper)
+        m (spline): m spline (numeric approximation for m in the Rubinstein and Sinclair paper)
+        return_K (bool, optional): If true, return a function for Gauss curvature K along with the Ricci tensor.
+        eps (float, optional): We cannot compute the Ricci tensor or the Gauss curvature too close to the poles (rho=0, rho=pi)
+            because m→0 as we approach either pole, which causes numerical instability when dividing by m. Hence, when computing
+            the Ricci tensor, we clamp rho to be between eps and pi-eps.
+    
+    Returns:
+        func : [0, pi] → M_2(ℝ): Function which takes rho as input and returns the Ricci tensor at rho.
+    """
     sqrt_m = sqrt_spline(m)
     
     def K(rho):
@@ -129,6 +201,17 @@ def hm_to_ricci_tensor(h, m, return_K=False, eps=0.1):
 
 
 def reparam(h, m, ds=0.1):
+    """Reparametrizes h and m by arclength according to the reparametrization given in section 3.1 of the
+    Rubinstein and Sinclair paper.
+    
+    Args:
+        h (spline): h spline (numeric approximation for h in the Rubinstein and Sinclair paper)
+        m (spline): m spline (numeric approximation for m in the Rubinstein and Sinclair paper)
+        ds (float, optional): Approximate step size to take when computing l along [0, pi].
+    
+    Returns:
+        (spline, spline): A tuple containing, respectively, the reparametrized h spline and the reparametrized m spline.
+    """
     l_spline_list = [(0, 0)]
     def l_integrand(s): return sqrt(h(s)) if h(s) > 0 else 0
     s_space = np.linspace(0, pi, round(pi / ds))
@@ -149,6 +232,18 @@ def reparam(h, m, ds=0.1):
 
 
 def add_cap(h, m):
+    """Since the Ricci tensor cannot be computed near the poles due to numerical instability,
+    we must avoid some neighborhood around the poles when running Ricci flow. Hence, to define
+    h and m on the full domain [0, pi], we append endpoints to h and m at rho=0 and rho=pi
+    according to the boundary conditions given by equation (3—1) in the Rubinstein and Sinclair paper.
+    
+    Args:
+        h (spline): h spline without pole (numeric approximation for h in the Rubinstein and Sinclair paper)
+        m (spline): m spline without pole (numeric approximation for m in the Rubinstein and Sinclair paper)
+    
+    Returns:
+        (spline, spline): A tuple containing, respectively, the h spline with endpoints, and the m spline with endpoints.
+    """
     h_capped = spline(h.list())
     m_capped = spline(m.list())
 
@@ -164,6 +259,28 @@ def add_cap(h, m):
 
 
 def euler_step(h, m, dt, rho_space, eps, k_space=None, cap=True, return_R=False):
+    """Run one Euler step. If k_space is None, we compute the Ricci tensor and run the Euler
+    step according to the differential equation for Ricci flow as usual. If k_space is given,
+    then instead of computing the Ricci tensor, we use k_space for the derivative. This k_space
+    parameter is used in the implementation of rk4.
+    
+    Args:
+        h (spline): h spline (numeric approximation for h in the Rubinstein and Sinclair paper)
+        m (spline): m spline (numeric approximation for m in the Rubinstein and Sinclair paper)
+        dt (float): Timestep.
+        rho_space (ndarray): 1D array which contains the rho values for which h and m will be sampled
+        eps (float): Given to hm_to_ricci_tensor
+        k_space (ndarray | None, optional): If None, the function computes the Ricci tensor for the derivative step.
+            If given as a 1D array, the function uses k_space as the derivative instead of computing the Ricci tensor.
+            This functionality is necessary for the implementation of rk4.
+        cap (bool, optional): If True, calls add_cap(h_next, m_next) before returning h_next and m_next.
+        return_R (bool, optional): If True, returns the computed Ricci tensor R along with h_next, m_next, and k_space.
+            If return_R is True, then k_space must be None (since if k_space is not None, the Ricci tensor will not be computed).
+    
+    Returns:
+        (spline, spline, ndarray): A tuple containing, respectively, the h spline after the Euler step,
+            the m spline after the Euler step, and k_space.
+    """
     if k_space is None:
         logging.info("\tComputing Ricci tensor")
         R = hm_to_ricci_tensor(h, m, eps=eps)
@@ -183,6 +300,19 @@ def euler_step(h, m, dt, rho_space, eps, k_space=None, cap=True, return_R=False)
 
 
 def rk4_step(h1, m1, dt, eps=0.01, drho=0.01):
+    """Run one rk4 step of Ricci flow.
+    
+    Args:
+        h1 (spline): h spline (numeric approximation for h in the Rubinstein and Sinclair paper)
+        m1 (spline): m spline (numeric approximation for m in the Rubinstein and Sinclair paper)
+        dt (float): Timestep.
+        eps (float, optional): How close we get to the poles. Also given to euler_step.
+        drho (float, optional): Approximate step size for taking samples of [eps, pi-eps] for computing h and m during the Euler step.
+    
+    Returns:
+        (spline, spline, func): A tuple containing, respectively, the h spline after the rk4 step, the m spline after the rk4 step,
+            and the Ricci tensor function.
+    """
     rho_space = np.linspace(eps, pi-eps, round((pi-2*eps) / drho))
 
     logging.info("\tRunning rk4 step 1")
@@ -207,20 +337,33 @@ def rk4_step(h1, m1, dt, eps=0.01, drho=0.01):
     return h_next, m_next, R
 
 
+# Since the principle curvatures approach 0 and infinity as we approach the poles,
+# we need to remain some epsilon away from the poles when taking samples for the Tissot indicatrix.
 tissot_eps = 0.5
+
+# Since the Tissot ellipses will be larger than the space along which they are sampled,
+# we need to view a larger range than the sample space when making the animation.
 tissot_theta_padding = 1
 tissot_rho_padding = 0.5
-tissot_const = 0.5
 
+# In the Tissot visualization, the Tissot ellipses are rescaled at each step so that
+# the ellipses at rho=pi/2 have a constant height (i.e., constant diameter in the rho-direction).
+# tissot_const sets that constant diameter.
+tissot_const = 0.25
+
+# Constants for the first curve from the Rubinstein and Sinclair paper.
 # c3 = 0.766
 # c5 = -0.091
 
+# Constants for the second curve from the Rubinstein and Sinclair paper.
 c3 = 0.021
 c5 = 0.598
 
+# Initial metric as given in the Rubinstein and Sinclair paper.
 h(rho) = 1
 m(rho) = ((sin(rho) + c3*sin(3*rho) + c5*sin(5*rho))/(1 + 3*c3 + 5*c5))**2
 
+# Plotting initial values
 srange = (0, pi)
 h = to_spline(h, srange)
 m = to_spline(m, srange)
@@ -244,14 +387,14 @@ if plot_initial_K:
 if plot_initial_tissot:
     _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1)
     tissot_plot = Graphics()
-    tissot_scale = tissot_const / (2 * m(pi/2))
+    tissot_scale = tissot_const / m(pi/2)
     tissot_plot += sum([ellipse((x, y), k1 * tissot_scale, k2 * tissot_scale, theta, axes=False) for x, y, k1, k2, theta in ellipses])
     tissot_plot.save(path("initial_tissot.png"), xmin=-tissot_theta_padding, xmax=2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=pi + tissot_rho_padding)
 
 
-# Ricci flow
+# Running Ricci flow
 dt = 0.0001
-N = 3001
+N = 3001 # The simulation will run for at most N timesteps. If it encounters a numerical error earlier, it will terminate and save all animations up until that timestep.
 plot_gap = 10
 reparam_gap = 4
 space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
@@ -308,7 +451,7 @@ for i in range(N):
                 R11_plots.append(plot(R11, srange, title="R11"))
                 R22_plots.append(plot(R22, srange, title="R22"))
             if animate_tissot:
-                tissot_scale = tissot_const / (2 * m(pi/2))
+                tissot_scale = tissot_const / m(pi/2)
                 _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1)
                 tissot_plot = Graphics()
                 tissot_plot += sum([ellipse((x, y), k1 * tissot_scale, k2 * tissot_scale, theta, axes=True) for x, y, k1, k2, theta in ellipses])
