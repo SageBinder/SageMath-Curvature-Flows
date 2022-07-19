@@ -20,18 +20,45 @@ plot_initial_R = True
 plot_initial_K = True
 plot_initial_tissot = True
 
-animate_curve = True
-animate_m = True
-animate_h = True
-animate_R = True
-animate_tissot = True
+animate_curve = False
+animate_m = False
+animate_h = False
+animate_R = False
+animate_K = False
+animate_tissot = False
 animate_gauss_colored_surface = True
 
 cm = colormaps.RdYlGn # Color map for coloring the surface by Gauss curvature
 
+# The following variables and function is for coloring the surface by Gauss curvature.
+# It's disgusting.
+# This code is necessary because when animating a series of frames with a color function,
+# SageMath calls the color function repeatedly for each frame in the animation.
+# The problem is, it doesn't seem possible to give each frame in the animation a different color function;
+# when you try to do so, SageMath seemingly just applies the last frame's color function to every frame in the animation.
+# Thus, this nonsense is required. To check if SageMath is finished plotting a frame, and hence that we
+# should move to the next y spline, we check if theta was reset to 0.
+y_splines = []
+color_iter = 0
+last_theta = 0
+def c(theta, rho, eps=0.1):
+    global color_iter
+
+    rho = clamp(rho, eps, pi-eps)
+    y = y_splines[color_iter % len(y_splines)]
+    K = y.derivative(rho, order=2) / y(rho)
+    sigmoid = 1 / (1 + exp(-K))
+
+    global last_theta
+    if last_theta != 0 and theta == 0:
+        color_iter += 1
+    last_theta = theta
+
+    return sigmoid
+
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./Fig3_flow_animate_all_test"
+folder_name = "./Fig3_flow_animate_K_test"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -397,7 +424,7 @@ if plot_initial_tissot:
 
 # Running Ricci flow
 dt = 0.0001
-N = 3001 # The simulation will run for at most N timesteps. If it encounters a numerical error earlier, it will terminate and save all animations up until that timestep.
+N = 1500 # The simulation will run for at most N timesteps. If it encounters a numerical error earlier, it will terminate and save all animations up until that timestep.
 plot_gap = 10
 reparam_gap = 4
 space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
@@ -418,6 +445,8 @@ m_plots = []
 h_plots = []
 R11_plots = []
 R22_plots = []
+K_plots = []
+K_sigmoid_plots = []
 tissot_plots = []
 
 for i in range(N):
@@ -432,15 +461,11 @@ for i in range(N):
         if i % plot_gap == 0:
             logging.info("\tGetting x and y splines from h and m splines")
             x, y = xy_splines_from_hm(h, m, srange, step_size=0.1)
+            y_splines.append(y)
             
             print("\tAppending plots")
             revolved_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange))
             if animate_gauss_colored_surface:
-                def c(theta, rho, eps=0.1):
-                    rho = clamp(rho, eps, pi-eps)
-                    K = y.derivative(rho, order=2) / y(rho)
-                    sigmoid = 1 / (1 + exp(-K))
-                    return sigmoid
                 revolved_gauss_colored_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange, plot_points=[20, 80], color=(c, cm)))
             if animate_curve:
                 curve_plots.append(parametric_plot((x, y), srange))
@@ -451,6 +476,9 @@ for i in range(N):
             if animate_R:
                 R11_plots.append(plot(lambda rho: R(rho)[0][0], srange, title="R11"))
                 R22_plots.append(plot(lambda rho: R(rho)[1][1], srange, title="R22"))
+            if animate_K:
+                K_plots.append(plot(lambda rho: y.derivative(rho, order=2) / y(rho), (eps, pi-eps), title="K"))
+                K_sigmoid_plots.append(plot(lambda rho: 1 / (1 + exp(-(y.derivative(rho, order=2) / y(rho)))), (eps, pi-eps), title="sigmoid(K)"))
             if animate_tissot:
                 tissot_scale = tissot_const / m(pi/2)
                 _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1)
@@ -490,6 +518,9 @@ if animate_h:
 if animate_R:
     save_animation(R11_plots, "R11", "R11_anim.gif")
     save_animation(R22_plots, "R22", "R22_anim.gif")
+if animate_K:
+    save_animation(K_plots, "K", "K_anim.gif")
+    save_animation(K_sigmoid_plots, "sigmoid(K)", "K_sigmoid_anim.gif")
 if animate_tissot:
     save_animation(tissot_plots, "Tissot", "tissot_anim.gif")
 if animate_gauss_colored_surface:
