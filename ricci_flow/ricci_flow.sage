@@ -46,7 +46,7 @@ def c(theta, rho, eps=0.1):
 
     rho = clamp(rho, eps, pi-eps)
     y = y_splines[color_iter % len(y_splines)]
-    K = y.derivative(rho, order=2) / y(rho)
+    K = - y.derivative(rho, order=2) / y(rho)
     sigmoid = 1 / (1 + exp(-K))
 
     global last_theta
@@ -54,11 +54,11 @@ def c(theta, rho, eps=0.1):
         color_iter += 1
     last_theta = theta
 
-    return sigmoid
+    return 1 - sigmoid
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./Fig3_flow_animate_K_test"
+folder_name = "./Fig3_dynamic_params_test"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -424,12 +424,22 @@ if plot_initial_tissot:
 
 # Running Ricci flow
 dt = 0.0001
-N = 1500 # The simulation will run for at most N timesteps. If it encounters a numerical error earlier, it will terminate and save all animations up until that timestep.
+
+# The simulation will run for at most N timesteps. If it encounters a numerical error earlier, it will terminate and save all animations up until that timestep.
+# N = 1000 + 5000 + 1
+N = 1200
 plot_gap = 10
 reparam_gap = 4
 space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
 eps = 0.1
 drho = 0.1
+
+shift_params_after = 0
+new_dt = 0.00001
+new_plot_gap = 100
+new_eps = 0.1
+new_drho = 0.05
+
 
 print("Running ricci flow...")
 print(f"c3 = {c3}")
@@ -451,7 +461,14 @@ tissot_plots = []
 
 for i in range(N):
     try:
-        print(f"\nRK4: Iteration {i}/{N-1}, t = {dt*i}")
+        # Switch to smaller timestep (and update other params accordingly) after a certain number of iterations
+        if shift_params_after > 0 and i == shift_params_after:
+            dt = new_dt 
+            plot_gap = new_plot_gap
+            eps = new_eps 
+            drho = new_drho 
+
+        print(f"\nRK4: Iteration {i}/{N-1}, t = {"%.6f" % dt*i} (dt = {"%.6f" % dt})")
         h, m, R = rk4_step(h, m, dt, eps=eps, drho=drho)
         
         if i % reparam_gap == 0:
