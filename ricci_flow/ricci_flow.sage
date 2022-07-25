@@ -20,12 +20,12 @@ plot_initial_R = True
 plot_initial_K = True
 plot_initial_tissot = True
 
-animate_curve = False
-animate_m = False
-animate_h = False
-animate_R = False
-animate_K = False
-animate_tissot = False
+animate_curve = True
+animate_m = True
+animate_h = True
+animate_R = True
+animate_K = True
+animate_tissot = True
 animate_gauss_colored_surface = True
 
 center_surface_anim = True
@@ -61,7 +61,7 @@ def c(theta, rho, eps=0.1):
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./Fig3_modified_gauss_color_scale_test"
+folder_name = "./Fig3_animate_all"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -370,20 +370,6 @@ def rk4_step(h1, m1, dt, eps=0.01, drho=0.01):
     return h_next, m_next, R
 
 
-# Since the principle curvatures approach 0 and infinity as we approach the poles,
-# we need to remain some epsilon away from the poles when taking samples for the Tissot indicatrix.
-tissot_eps = 0.5
-
-# Since the Tissot ellipses will be larger than the space along which they are sampled,
-# we need to view a larger range than the sample space when making the animation.
-tissot_theta_padding = 1
-tissot_rho_padding = 0.5
-
-# In the Tissot visualization, the Tissot ellipses are rescaled at each step so that
-# the ellipses at rho=pi/2 have a constant height (i.e., constant diameter in the rho-direction).
-# tissot_const sets that constant diameter.
-tissot_const = 0.25
-
 # Constants for the first curve from the Rubinstein and Sinclair paper.
 # c3 = 0.766
 # c5 = -0.091
@@ -403,6 +389,23 @@ m = to_spline(m, srange)
 x, y = xy_splines_from_hm(h, m, srange, step_size=0.1)
 R, K = hm_to_ricci_tensor(h, m, return_K=True)
 
+# Since the principle curvatures approach 0 and infinity as we approach the poles,
+# we need to remain some epsilon away from the poles when taking samples for the Tissot indicatrix.
+tissot_eps = 0.5
+
+# Since the Tissot ellipses will be larger than the space along which they are sampled,
+# we need to view a larger range than the sample space when making the animation.
+tissot_theta_padding = 4*pi
+tissot_rho_padding = 0.25
+
+# In the Tissot visualization, the Tissot ellipses are rescaled at each step so that
+# the ellipses at rho=pi/2 have a constant height (i.e., constant diameter in the rho-direction).
+# tissot_const sets that constant diameter.
+tissot_const = 1.5
+
+tissot_theta_placement_scale = 6
+tissot_rho_placement_scale = 6
+
 if plot_initial_curve:
     xy_plot = parametric_plot((x, y), (x.list()[0][0], x.list()[-1][0]))
     xy_plot.save(path("initial_curve_of_revolution.png"))
@@ -418,10 +421,10 @@ if plot_initial_R:
 if plot_initial_K:
     plot(K, srange, marker=",", linestyle="", title="K").save(path("initial_K.png"))
 if plot_initial_tissot:
-    _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1)
+    _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1, ucount=3, vcount=7)
     tissot_plot = Graphics()
-    tissot_scale = tissot_const / m(pi/2)
-    tissot_plot += sum([ellipse((x, y), k1 * tissot_scale, k2 * tissot_scale, theta, axes=False) for x, y, k1, k2, theta in ellipses])
+    tissot_plot += sum([ellipse((x*tissot_theta_placement_scale, y*tissot_rho_placement_scale), k1*tissot_scale, k2*tissot_scale, theta, axes=False) for x, y, k1, k2, theta in ellipses])
+    tissot_plot.set_axes_range(xmin=-tissot_theta_padding, xmax=tissot_theta_placement_scale*2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=tissot_rho_placement_scale*pi + tissot_rho_padding)
     tissot_plot.save(path("initial_tissot.png"), xmin=-tissot_theta_padding, xmax=2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=pi + tissot_rho_padding)
 
 
@@ -430,7 +433,7 @@ dt = 0.0001
 
 # The simulation will run for at most N timesteps. If it encounters a numerical error earlier, it will terminate and save all animations up until that timestep.
 # N = 1000 + 5000 + 1
-N = 1200
+N = 2001
 plot_gap = 10
 reparam_gap = 4
 space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
@@ -507,10 +510,10 @@ for i in range(N):
                 K_sigmoid_plots.append(plot(lambda rho: 1 / (1 + exp(-(y.derivative(rho, order=2) / y(rho)))), (eps, pi-eps), title="sigmoid(K)"))
             if animate_tissot:
                 tissot_scale = tissot_const / m(pi/2)
-                _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1)
+                _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1, ucount=3, vcount=7)
                 tissot_plot = Graphics()
-                tissot_plot += sum([ellipse((x, y), k1 * tissot_scale, k2 * tissot_scale, theta, axes=True) for x, y, k1, k2, theta in ellipses])
-                tissot_plot.set_axes_range(xmin=-tissot_theta_padding, xmax=2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=pi + tissot_rho_padding)
+                tissot_plot += sum([ellipse((x*tissot_theta_placement_scale, y*tissot_rho_placement_scale), k1*tissot_scale, k2*tissot_scale, theta, axes=False) for x, y, k1, k2, theta in ellipses])
+                tissot_plot.set_axes_range(xmin=-tissot_theta_padding, xmax=tissot_theta_placement_scale*2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=tissot_rho_placement_scale*pi + tissot_rho_padding)
                 tissot_plots.append(tissot_plot)
     except Exception as e:
         print(f"Encountered exception on iteration {i}/{N-1}, t = {dt*i}:")
@@ -535,22 +538,27 @@ def save_animation(plots, label, filename, show_path=True, online=None):
     end = time.time()
     print(f"Saved animation in {end - start} seconds.\n")
 
+    return end - start
 
-if animate_curve:
-    save_animation(curve_plots, "curve", "curve_flow.gif")
-if animate_m:
-    save_animation(m_plots, "sqrt(m)", "sqrt_m_anim.gif")
-if animate_h:
-    save_animation(h_plots, "h", "h_anim.gif")
-if animate_R:
-    save_animation(R11_plots, "R11", "R11_anim.gif")
-    save_animation(R22_plots, "R22", "R22_anim.gif")
-if animate_K:
-    save_animation(K_plots, "K", "K_anim.gif")
-    save_animation(K_sigmoid_plots, "sigmoid(K)", "K_sigmoid_anim.gif")
-if animate_tissot:
-    save_animation(tissot_plots, "Tissot", "tissot_anim.gif")
+
+total_time = 0
+total_time += save_animation(revolved_plots, "surface flow", "surf_flow.html", online=True)
+
 if animate_gauss_colored_surface:
-    save_animation(revolved_gauss_colored_plots, "Gauss-colored surface flow", "gauss_colored_surf_flow.html", online=True)
+    total_time += save_animation(revolved_gauss_colored_plots, "Gauss-colored surface flow", "gauss_colored_surf_flow.html", online=True)
+if animate_curve:
+    total_time += save_animation(curve_plots, "curve", "curve_flow.gif")
+if animate_m:
+    total_time += save_animation(m_plots, "sqrt(m)", "sqrt_m_anim.gif")
+if animate_h:
+    total_time += save_animation(h_plots, "h", "h_anim.gif")
+if animate_R:
+    total_time += save_animation(R11_plots, "R11", "R11_anim.gif")
+    total_time += save_animation(R22_plots, "R22", "R22_anim.gif")
+if animate_K:
+    total_time += save_animation(K_plots, "K", "K_anim.gif")
+    total_time += save_animation(K_sigmoid_plots, "sigmoid(K)", "K_sigmoid_anim.gif")
+if animate_tissot:
+    total_time += save_animation(tissot_plots, "Tissot", "tissot_anim.gif")
 
-save_animation(revolved_plots, "surface flow", "surf_flow.html", online=True)
+print(f"Done saving plots in {end - start} seconds.")
