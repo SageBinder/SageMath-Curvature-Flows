@@ -28,6 +28,8 @@ animate_K = False
 animate_tissot = False
 animate_gauss_colored_surface = True
 
+center_surface_anim = True
+
 cm = colormaps.RdYlGn # Color map for coloring the surface by Gauss curvature
 
 # The following variables and function is for coloring the surface by Gauss curvature.
@@ -58,7 +60,7 @@ def c(theta, rho, eps=0.1):
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./Fig3_dynamic_params_test"
+folder_name = "./Fig3_centered_test"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -468,7 +470,7 @@ for i in range(N):
             eps = new_eps 
             drho = new_drho 
 
-        print(f"\nRK4: Iteration {i}/{N-1}, t = {"%.6f" % dt*i} (dt = {"%.6f" % dt})")
+        print(f"\nRK4: Iteration {i}/{N-1}, " + "t = {:.6f} (dt = {:.6f})".format(dt*i, dt))
         h, m, R = rk4_step(h, m, dt, eps=eps, drho=drho)
         
         if i % reparam_gap == 0:
@@ -481,9 +483,12 @@ for i in range(N):
             y_splines.append(y)
             
             print("\tAppending plots")
-            revolved_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange))
+            
+            x_to_anim = spline([(rho, x_val - x(pi/2)) for rho, x_val in x.list()]) if center_surface_anim else x
+
+            revolved_plots.append(parametric_plot3d(revolve(x_to_anim, y), (0, 2*pi), srange, frame=False))
             if animate_gauss_colored_surface:
-                revolved_gauss_colored_plots.append(parametric_plot3d(revolve(x, y), (0, 2*pi), srange, plot_points=[20, 80], color=(c, cm)))
+                revolved_gauss_colored_plots.append(parametric_plot3d(revolve(x_to_anim, y), (0, 2*pi), srange, plot_points=[20, 80], color=(c, cm), frame=False))
             if animate_curve:
                 curve_plots.append(parametric_plot((x, y), srange))
             if animate_m:
