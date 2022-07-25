@@ -40,6 +40,7 @@ cm = colormaps.RdYlGn # Color map for coloring the surface by Gauss curvature
 # when you try to do so, SageMath seemingly just applies the last frame's color function to every frame in the animation.
 # Thus, this nonsense is required. To check if SageMath is finished plotting a frame, and hence that we
 # should move to the next y spline, we check if theta was reset to 0.
+gauss_color_scale = 1/3
 y_splines = []
 color_iter = 0
 last_theta = 0
@@ -49,7 +50,7 @@ def c(theta, rho, eps=0.1):
     rho = clamp(rho, eps, pi-eps)
     y = y_splines[color_iter % len(y_splines)]
     K = - y.derivative(rho, order=2) / y(rho)
-    sigmoid = 1 / (1 + exp(-K))
+    sigmoid = 1 / (1 + exp(-K * gauss_color_scale))
 
     global last_theta
     if last_theta != 0 and theta == 0:
@@ -60,7 +61,7 @@ def c(theta, rho, eps=0.1):
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./Fig3_centered_test"
+folder_name = "./Fig3_modified_gauss_color_scale_test"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -470,13 +471,16 @@ for i in range(N):
             eps = new_eps 
             drho = new_drho 
 
+        # Run RK4 step:
         print(f"\nRK4: Iteration {i}/{N-1}, " + "t = {:.6f} (dt = {:.6f})".format(dt*i, dt))
         h, m, R = rk4_step(h, m, dt, eps=eps, drho=drho)
         
+        # Reparametrize:
         if i % reparam_gap == 0:
             print("\tReparametrizing...")
             h, m = reparam(h, m)
 
+        # Save plots:
         if i % plot_gap == 0:
             logging.info("\tGetting x and y splines from h and m splines")
             x, y = xy_splines_from_hm(h, m, srange, step_size=0.1)
@@ -530,6 +534,7 @@ def save_animation(plots, label, filename, show_path=True, online=None):
         anim.save(path(filename), show_path=show_path)
     end = time.time()
     print(f"Saved animation in {end - start} seconds.\n")
+
 
 if animate_curve:
     save_animation(curve_plots, "curve", "curve_flow.gif")
