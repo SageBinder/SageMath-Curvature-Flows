@@ -20,13 +20,13 @@ plot_initial_R = True
 plot_initial_K = True
 plot_initial_tissot = True
 
-animate_curve = True
-animate_m = True
-animate_h = True
-animate_R = True
-animate_K = True
+animate_curve = False
+animate_m = False
+animate_h = False
+animate_R = False
+animate_K = False
 animate_tissot = True
-animate_gauss_colored_surface = True
+animate_gauss_colored_surface = False
 
 center_surface_anim = True
 
@@ -61,7 +61,7 @@ def c(theta, rho, eps=0.1):
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./Fig3_animate_all"
+folder_name = "./Fig1_animate_tissot_3"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -371,12 +371,12 @@ def rk4_step(h1, m1, dt, eps=0.01, drho=0.01):
 
 
 # Constants for the first curve from the Rubinstein and Sinclair paper.
-# c3 = 0.766
-# c5 = -0.091
+c3 = 0.766
+c5 = -0.091
 
 # Constants for the second curve from the Rubinstein and Sinclair paper.
-c3 = 0.021
-c5 = 0.598
+# c3 = 0.021
+# c5 = 0.598
 
 # Initial metric as given in the Rubinstein and Sinclair paper.
 h(rho) = 1
@@ -401,10 +401,10 @@ tissot_rho_padding = 0.25
 # In the Tissot visualization, the Tissot ellipses are rescaled at each step so that
 # the ellipses at rho=pi/2 have a constant height (i.e., constant diameter in the rho-direction).
 # tissot_const sets that constant diameter.
-tissot_const = 1.5
+tissot_const = 0.25
 
-tissot_theta_placement_scale = 6
-tissot_rho_placement_scale = 6
+tissot_theta_placement_scale = 8
+tissot_rho_placement_scale = 12
 
 if plot_initial_curve:
     xy_plot = parametric_plot((x, y), (x.list()[0][0], x.list()[-1][0]))
@@ -421,6 +421,7 @@ if plot_initial_R:
 if plot_initial_K:
     plot(K, srange, marker=",", linestyle="", title="K").save(path("initial_K.png"))
 if plot_initial_tissot:
+    tissot_scale = tissot_const / m(pi/2)
     _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1, ucount=3, vcount=7)
     tissot_plot = Graphics()
     tissot_plot += sum([ellipse((x*tissot_theta_placement_scale, y*tissot_rho_placement_scale), k1*tissot_scale, k2*tissot_scale, theta, axes=False) for x, y, k1, k2, theta in ellipses])
@@ -561,4 +562,4 @@ if animate_K:
 if animate_tissot:
     total_time += save_animation(tissot_plots, "Tissot", "tissot_anim.gif")
 
-print(f"Done saving plots in {end - start} seconds.")
+print(f"Done saving plots in {total_time} seconds.")
