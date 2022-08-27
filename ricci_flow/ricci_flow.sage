@@ -13,20 +13,20 @@ import time
 
 pi = RR.pi()
 
-plot_initial_curve = True
-plot_initial_m = True
-plot_initial_h = True
-plot_initial_R = True
-plot_initial_K = True
-plot_initial_tissot = True
+plot_initial_curve = False
+plot_initial_m = False
+plot_initial_h = False
+plot_initial_R = False
+plot_initial_K = False
+plot_initial_tissot = False
 
 animate_curve = False
 animate_m = False
 animate_h = False
 animate_R = False
 animate_K = False
-animate_tissot = True
-animate_gauss_colored_surface = False
+animate_tissot = False
+animate_gauss_colored_surface = True
 
 center_surface_anim = True
 
@@ -61,7 +61,7 @@ def c(theta, rho, eps=0.1):
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./Fig1_animate_tissot_3"
+folder_name = "./atcm-gauss-color"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -435,7 +435,7 @@ dt = 0.0001
 # The simulation will run for at most N timesteps. If it encounters a numerical error earlier, it will terminate and save all animations up until that timestep.
 # N = 1000 + 5000 + 1
 N = 2001
-plot_gap = 10
+plot_gap = 400
 reparam_gap = 4
 space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
 eps = 0.1
