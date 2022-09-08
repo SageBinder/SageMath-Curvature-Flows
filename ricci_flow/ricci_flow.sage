@@ -25,8 +25,8 @@ animate_m = False
 animate_h = False
 animate_R = False
 animate_K = False
-animate_tissot = False
-animate_gauss_colored_surface = True
+animate_tissot = True
+animate_gauss_colored_surface = False
 
 center_surface_anim = True
 
@@ -61,7 +61,7 @@ def c(theta, rho, eps=0.1):
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./atcm-gauss-color"
+folder_name = "./atcm-tissot"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -371,12 +371,12 @@ def rk4_step(h1, m1, dt, eps=0.01, drho=0.01):
 
 
 # Constants for the first curve from the Rubinstein and Sinclair paper.
-c3 = 0.766
-c5 = -0.091
+# c3 = 0.766
+# c5 = -0.091
 
 # Constants for the second curve from the Rubinstein and Sinclair paper.
-# c3 = 0.021
-# c5 = 0.598
+c3 = 0.021
+c5 = 0.598
 
 # Initial metric as given in the Rubinstein and Sinclair paper.
 h(rho) = 1
@@ -401,10 +401,10 @@ tissot_rho_padding = 0.25
 # In the Tissot visualization, the Tissot ellipses are rescaled at each step so that
 # the ellipses at rho=pi/2 have a constant height (i.e., constant diameter in the rho-direction).
 # tissot_const sets that constant diameter.
-tissot_const = 0.25
+tissot_const = 2.5
 
 tissot_theta_placement_scale = 8
-tissot_rho_placement_scale = 12
+tissot_rho_placement_scale = 20
 
 if plot_initial_curve:
     xy_plot = parametric_plot((x, y), (x.list()[0][0], x.list()[-1][0]))
@@ -435,7 +435,7 @@ dt = 0.0001
 # The simulation will run for at most N timesteps. If it encounters a numerical error earlier, it will terminate and save all animations up until that timestep.
 # N = 1000 + 5000 + 1
 N = 2001
-plot_gap = 400
+plot_gap = 235
 reparam_gap = 4
 space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
 eps = 0.1
@@ -513,7 +513,7 @@ for i in range(N):
                 tissot_scale = tissot_const / m(pi/2)
                 _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1, ucount=3, vcount=7)
                 tissot_plot = Graphics()
-                tissot_plot += sum([ellipse((x*tissot_theta_placement_scale, y*tissot_rho_placement_scale), k1*tissot_scale, k2*tissot_scale, theta, axes=False) for x, y, k1, k2, theta in ellipses])
+                tissot_plot += sum([ellipse((x*tissot_theta_placement_scale, y*tissot_rho_placement_scale), k1*tissot_scale, k2*tissot_scale, theta, axes=False, thickness=1, fill=True) for x, y, k1, k2, theta in ellipses])
                 tissot_plot.set_axes_range(xmin=-tissot_theta_padding, xmax=tissot_theta_placement_scale*2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=tissot_rho_placement_scale*pi + tissot_rho_padding)
                 tissot_plots.append(tissot_plot)
     except Exception as e:
@@ -523,7 +523,7 @@ for i in range(N):
         break
 
 
-def save_animation(plots, label, filename, show_path=True, online=None):
+def save_animation(plots, label, filename, show_path=True, online=None, use_ffmpeg=False):
     print(f"Animating {label}...")
     start = time.time()
     anim = animate(plots)
@@ -533,9 +533,9 @@ def save_animation(plots, label, filename, show_path=True, online=None):
     print(f"Saving {label} animation...")
     start = time.time()
     if online is not None:
-        anim.save(path(filename), show_path=show_path, online=online)
+        anim.save(path(filename), show_path=show_path, online=online, use_ffmpeg=use_ffmpeg)
     else:
-        anim.save(path(filename), show_path=show_path)
+        anim.save(path(filename), show_path=show_path, use_ffmpeg=use_ffmpeg)
     end = time.time()
     print(f"Saved animation in {end - start} seconds.\n")
 
@@ -560,6 +560,6 @@ if animate_K:
     total_time += save_animation(K_plots, "K", "K_anim.gif")
     total_time += save_animation(K_sigmoid_plots, "sigmoid(K)", "K_sigmoid_anim.gif")
 if animate_tissot:
-    total_time += save_animation(tissot_plots, "Tissot", "tissot_anim.gif")
+    total_time += save_animation(tissot_plots, "Tissot", "tissot_anim.gif", use_ffmpeg=True)
 
 print(f"Done saving plots in {total_time} seconds.")
