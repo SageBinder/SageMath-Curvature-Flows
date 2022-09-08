@@ -66,7 +66,7 @@ def c(theta, rho, eps=_sage_const_0p1 ):
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./atcm-tissot"
+folder_name = "./atcm-tissot-2"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -518,7 +518,7 @@ for i in range(N):
                 tissot_scale = tissot_const / m(pi/_sage_const_2 )
                 _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=_sage_const_1 , ucount=_sage_const_3 , vcount=_sage_const_7 )
                 tissot_plot = Graphics()
-                tissot_plot += sum([ellipse((x*tissot_theta_placement_scale, y*tissot_rho_placement_scale), k1*tissot_scale, k2*tissot_scale, theta, axes=False, thickness=_sage_const_1 , fill=True) for x, y, k1, k2, theta in ellipses])
+                tissot_plot += sum([ellipse((x*tissot_theta_placement_scale, y*tissot_rho_placement_scale), k1*tissot_scale, k2*tissot_scale, theta, axes=False, thickness=_sage_const_1 ) for x, y, k1, k2, theta in ellipses])
                 tissot_plot.set_axes_range(xmin=-tissot_theta_padding, xmax=tissot_theta_placement_scale*_sage_const_2 *pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=tissot_rho_placement_scale*pi + tissot_rho_padding)
                 tissot_plots.append(tissot_plot)
     except Exception as e:
@@ -565,7 +565,7 @@ if animate_K:
     total_time += save_animation(K_plots, "K", "K_anim.gif")
     total_time += save_animation(K_sigmoid_plots, "sigmoid(K)", "K_sigmoid_anim.gif")
 if animate_tissot:
-    total_time += save_animation(tissot_plots, "Tissot", "tissot_anim.gif", use_ffmpeg=True)
+    total_time += save_animation(tissot_plots, "Tissot", "tissot_anim.gif")
 
 print(f"Done saving plots in {total_time} seconds.")
 
