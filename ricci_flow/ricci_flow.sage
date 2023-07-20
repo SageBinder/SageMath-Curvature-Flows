@@ -61,7 +61,7 @@ def c(theta, rho, eps=0.1):
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./atcm-tissot"
+folder_name = "./atcm-tissot-2"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
@@ -371,12 +371,12 @@ def rk4_step(h1, m1, dt, eps=0.01, drho=0.01):
 
 
 # Constants for the first curve from the Rubinstein and Sinclair paper.
-c3 = 0.766
-c5 = -0.091
+# c3 = 0.766
+# c5 = -0.091
 
 # Constants for the second curve from the Rubinstein and Sinclair paper.
-# c3 = 0.021
-# c5 = 0.598
+c3 = 0.021
+c5 = 0.598
 
 # Initial metric as given in the Rubinstein and Sinclair paper.
 h(rho) = 1
@@ -401,7 +401,7 @@ tissot_rho_padding = 0.25
 # In the Tissot visualization, the Tissot ellipses are rescaled at each step so that
 # the ellipses at rho=pi/2 have a constant height (i.e., constant diameter in the rho-direction).
 # tissot_const sets that constant diameter.
-tissot_const = 0.25
+tissot_const = 2.5
 
 tissot_theta_placement_scale = 8
 tissot_rho_placement_scale = 20
@@ -435,7 +435,7 @@ dt = 0.0001
 # The simulation will run for at most N timesteps. If it encounters a numerical error earlier, it will terminate and save all animations up until that timestep.
 # N = 1000 + 5000 + 1
 N = 2001
-plot_gap = 399
+plot_gap = 235
 reparam_gap = 4
 space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
 eps = 0.1

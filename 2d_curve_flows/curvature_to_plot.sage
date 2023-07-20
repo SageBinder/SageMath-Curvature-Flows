@@ -19,8 +19,9 @@ def splines_from_curvature(kappa, s, srange=(0,1), theta_0=0, x_0=0, y_0=0, step
 
     x_spline = spline([(s, x) for s, theta, x, y in P])
     y_spline = spline([(s, y) for s, theta, x, y in P])
+    theta_spline = spline([(s, theta) for s, theta, x, y in P])
 
-    return (x_spline, y_spline)
+    return (x_spline, y_spline, theta_spline)
 
 
 def spline_plot_from_curvature(kappa, s, srange=(0,1), theta_0=0, x_0=0, y_0=0, color='automatic', axes=True, step=0.1):
@@ -58,21 +59,23 @@ def splines_to_moment(x, y, srange=(0,1)):
 
 
 def splines_from_curvature_fix_center(kappa, s, srange=(0,1), theta_0=0, x_0=0, y_0=0, center=(0,0), step=0.1):
-    x, y = splines_from_curvature(kappa, s, srange, theta_0, x_0, y_0, step)
+    x, y, theta = splines_from_curvature(kappa, s, srange, theta_0, x_0, y_0, step)
     x_bar = spline_avg(x, srange)
     y_bar = spline_avg(y, srange)
-    return (lambda z: x(z) - x_bar, lambda z: y(z) - y_bar)
+    return (lambda z: x(z) - x_bar, lambda z: y(z) - y_bar, theta)
 
 kappa(s, a) = 1/3 + sin(s) + 3/a * sin(3*s)
 
 plots = []
 rotation_removed_plots = []
+kappa_plots = []
+theta_plots = []
 splines = []
-space, dt = np.linspace(1, 15, 50, retstep=True)
+space, dt = np.linspace(1, 4, 6, retstep=True)
 total_counterrotation = 0
 for a in space:
     print(f"Calculating curve for a = {a}...")
-    x, y = splines_from_curvature_fix_center(kappa(s, a), s, theta_0=0, srange=(0, 6*pi))
+    x, y, theta = splines_from_curvature_fix_center(kappa(s, a), s, theta_0=0, srange=(0, 6*pi))
 
     R = matrix.identity(2)
     if len(splines) >= 1:
@@ -86,25 +89,39 @@ for a in space:
     f = lambda z: R * vector([x(z), y(z)])
     splines.append((x, y))
 
-    rotation_removed_plots.append(parametric_plot((lambda z: f(z)[0], lambda z: f(z)[1]), (0, 6*pi), color='black', axes=True))
-    plots.append(parametric_plot((x, y), (0, 6*pi), color='red', axes=True))
+    rotation_removed_plots.append(parametric_plot((lambda z: f(z)[0], lambda z: f(z)[1]), (0, 6*pi), color='black', axes=True, ticks=[[], []]))
+    plots.append(parametric_plot((x, y), (0, 6*pi), color='red', axes=True, ticks=[[], []]))
+
+    pi_ticks = [i*pi for i in range(-10, 11)]
+    pi_tick_labels = [f"{i}π" for i in range(-10, 11)]
+
+    kappa_plots.append(plot(lambda z: kappa(z, a), color='green', axes=True, ticks=[pi_ticks, pi_ticks], tick_formatter=[pi_tick_labels, pi_tick_labels], xmin=0, xmax=6*pi))
+    theta_plots.append(plot(theta, (0, 6*pi), color='blue', axes=True, ticks=[pi_ticks, pi_ticks], tick_formatter=[pi_tick_labels, pi_tick_labels], xmin=0, xmax=6*pi))
 
 
-print("Animating...")
-a_both = animate([rotation_removed_plot + plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-4, xmax=4, ymin=-4, ymax=4)
-a_with_rotation = animate([plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-4, xmax=4, ymin=-4, ymax=4)
-a_rotation_removed = animate([rotation_removed_plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-4, xmax=4, ymin=-4, ymax=4)
+# print("Animating...")
+# a_both = animate([rotation_removed_plot + plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-4, xmax=4, ymin=-4, ymax=4)
+# a_with_rotation = animate([plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-4, xmax=4, ymin=-4, ymax=4)
+# a_rotation_removed = animate([rotation_removed_plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-4, xmax=4, ymin=-4, ymax=4)
 
-print("Saving...")
+# print("Saving...")
 
-a_both.gif(savefile="closed_curve_rotation_and_no_rotation.gif", delay=12, show_path=True)
-a_with_rotation.gif(savefile="closed_curve_with_rotation.gif", delay=12, show_path=True)
-a_rotation_removed.gif(savefile="closed_curve_rotation_removed.gif", delay=12, show_path=True)
+# a_both.gif(savefile="closed_curve_rotation_and_no_rotation.gif", delay=12, show_path=True)
+# a_with_rotation.gif(savefile="closed_curve_with_rotation.gif", delay=12, show_path=True)
+# a_rotation_removed.gif(savefile="closed_curve_rotation_removed.gif", delay=12, show_path=True)
 
-a_both.gif(savefile="closed_curve_rotation_and_no_rotation_fast.gif", delay=4, show_path=True)
-a_with_rotation.gif(savefile="closed_curve_with_rotation_fast.gif", delay=4, show_path=True)
-a_rotation_removed.gif(savefile="closed_curve_rotation_removed_fast.gif", delay=4, show_path=True)
+# a_both.gif(savefile="closed_curve_rotation_and_no_rotation_fast.gif", delay=4, show_path=True)
+# a_with_rotation.gif(savefile="closed_curve_with_rotation_fast.gif", delay=4, show_path=True)
+# a_rotation_removed.gif(savefile="closed_curve_rotation_removed_fast.gif", delay=4, show_path=True)
 
+for i, p in enumerate(rotation_removed_plots):
+    p.save_image(f"curve/curve_{i}.png", xmin=-4, xmax=4, ymin=-4, ymax=4)
+
+for i, p in enumerate(kappa_plots):
+    p.save_image(f"kappa/kappa_{i}.png", ymin=-4, ymax=4)
+
+for i, p in enumerate(theta_plots):
+    p.save_image(f"theta/theta_{i}.png", ymin=0, ymax=10)
 
 # c1 = 1
 # c2 = 0.2
