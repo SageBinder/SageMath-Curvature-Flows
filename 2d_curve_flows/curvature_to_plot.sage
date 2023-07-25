@@ -3,14 +3,14 @@ from sage.symbolic.integration.integral import definite_integral
 
 pi = RR.pi()
 
-def integrate_curvature(kappa, s, srange=(0,1), theta_0=0, x_0=0, y_0=0, step=0.1):
+def integrate_curvature(kappa, s, srange=(0,1), theta_0=0, x_0=0, y_0=0, step=0.1, int_bounds_eps=0.1):
     theta, x, y = var('θ, x, y')
     DE0 = kappa
     DE1 = cos(theta)
     DE2 = sin(theta)
-    ICs = [srange[0], theta_0, x_0, y_0]
+    ICs = [srange[0] - int_bounds_eps, theta_0, x_0, y_0]
 
-    P = desolve_system_rk4([DE0, DE1, DE2], [theta, x, y], ics=ICs, ivar=s, end_points=srange[1], step=step)
+    P = desolve_system_rk4([DE0, DE1, DE2], [theta, x, y], ics=ICs, ivar=s, end_points=srange[1] + int_bounds_eps, step=step)
     return P
 
 
@@ -62,25 +62,30 @@ def splines_from_curvature_fix_center(kappa, s, srange=(0,1), theta_0=0, x_0=0, 
     x, y, theta = splines_from_curvature(kappa, s, srange, theta_0, x_0, y_0, step)
     x_bar = spline_avg(x, srange)
     y_bar = spline_avg(y, srange)
-    return (lambda z: x(z) - x_bar, lambda z: y(z) - y_bar, theta)
+    return (lambda z: x(z) - x_bar + center[0], lambda z: y(z) - y_bar + center[1], theta)
 
-kappa(s, a) = 1/3 + sin(s) + 3/a * sin(3*s)
+# kappa(s, a) = 1/3 + sin(s) + 3/a * sin(3*s)
+c1 = 1
+c2 = 0.2
+
+kappa(s, t) = 1/5 + cos(s)*exp(-c2*t) + 5*cos(3*s)*exp(-9*c2*t)
+srange = (0, 10*pi)
 
 plots = []
 rotation_removed_plots = []
 kappa_plots = []
 theta_plots = []
 splines = []
-space, dt = np.linspace(1, 4, 6, retstep=True)
+space, dt = np.linspace(0.5, 2, 6, retstep=True)
 total_counterrotation = 0
 for a in space:
     print(f"Calculating curve for a = {a}...")
-    x, y, theta = splines_from_curvature_fix_center(kappa(s, a), s, theta_0=0, srange=(0, 6*pi))
+    x, y, theta = splines_from_curvature_fix_center(kappa(s, a), s, theta_0=0, srange=srange)
 
     R = matrix.identity(2)
     if len(splines) >= 1:
-        angular_momentum = splines_to_angular_momentum(splines[-1][0], splines[-1][1], x, y, dt, srange=(0, 6*pi))
-        I = splines_to_moment(x, y, srange=(0, 6*pi))
+        angular_momentum = splines_to_angular_momentum(splines[-1][0], splines[-1][1], x, y, dt, srange=srange)
+        I = splines_to_moment(x, y, srange=srange)
         angular_velocity = angular_momentum / I
         dtheta = angular_velocity * dt
         total_counterrotation += dtheta
@@ -89,39 +94,49 @@ for a in space:
     f = lambda z: R * vector([x(z), y(z)])
     splines.append((x, y))
 
-    rotation_removed_plots.append(parametric_plot((lambda z: f(z)[0], lambda z: f(z)[1]), (0, 6*pi), color='black', axes=True, ticks=[[], []]))
-    plots.append(parametric_plot((x, y), (0, 6*pi), color='red', axes=True, ticks=[[], []]))
+    rotation_removed_plots.append(parametric_plot((lambda z: f(z)[0], lambda z: f(z)[1]), srange, color='black', axes=True, ticks=[[], []]))
+    plots.append(parametric_plot((x, y), srange, color='red', axes=True, ticks=[[], []]))
 
     pi_ticks = [i*pi for i in range(-10, 11)]
-    pi_tick_labels = [f"{i}π" for i in range(-10, 11)]
+    # pi_tick_labels = [f"{i}π" for i in range(-10, 11)]
 
-    kappa_plots.append(plot(lambda z: kappa(z, a), color='green', axes=True, ticks=[pi_ticks, pi_ticks], tick_formatter=[pi_tick_labels, pi_tick_labels], xmin=0, xmax=6*pi))
-    theta_plots.append(plot(theta, (0, 6*pi), color='blue', axes=True, ticks=[pi_ticks, pi_ticks], tick_formatter=[pi_tick_labels, pi_tick_labels], xmin=0, xmax=6*pi))
+    # pi_ticks = []
+    pi_tick_labels=[""] * len(pi_ticks)
+
+    kappa_plots.append(plot(lambda z: kappa(z, a), color='green', axes=True, ticks=[pi_ticks, pi_ticks], tick_formatter=[pi_tick_labels, pi_tick_labels], xmin=srange[0], xmax=srange[1]))
+    theta_plots.append(plot(theta, srange, color='blue', axes=True, ticks=[pi_ticks, pi_ticks], tick_formatter=[pi_tick_labels, pi_tick_labels], xmin=srange[0], xmax=srange[1]))
 
 
-# print("Animating...")
+print("Animating...")
 # a_both = animate([rotation_removed_plot + plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-4, xmax=4, ymin=-4, ymax=4)
 # a_with_rotation = animate([plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-4, xmax=4, ymin=-4, ymax=4)
-# a_rotation_removed = animate([rotation_removed_plot for rotation_removed_plot, plot in zip(rotation_removed_plots, plots)], xmin=-4, xmax=4, ymin=-4, ymax=4)
 
-# print("Saving...")
+# a_rotation_removed = animate(rotation_removed_plots, xmin=-4, xmax=4, ymin=-4, ymax=4)
+# a_kappa = animate(kappa_plots, ymin=-4, ymax=4)
+# a_theta = animate(theta_plots, ymin=0, ymax=10)
+
+
+
+print("Saving...")
+# a_rotation_removed.gif(savefile="curve/curve.gif", delay=12, show_path=True)
+# a_kappa.gif(savefile="kappa/kappa.gif", delay=12, show_path=True)
+# a_theta.gif(savefile="theta/theta.gif", delay=12, show_path=True)
 
 # a_both.gif(savefile="closed_curve_rotation_and_no_rotation.gif", delay=12, show_path=True)
 # a_with_rotation.gif(savefile="closed_curve_with_rotation.gif", delay=12, show_path=True)
-# a_rotation_removed.gif(savefile="closed_curve_rotation_removed.gif", delay=12, show_path=True)
 
 # a_both.gif(savefile="closed_curve_rotation_and_no_rotation_fast.gif", delay=4, show_path=True)
 # a_with_rotation.gif(savefile="closed_curve_with_rotation_fast.gif", delay=4, show_path=True)
 # a_rotation_removed.gif(savefile="closed_curve_rotation_removed_fast.gif", delay=4, show_path=True)
 
 for i, p in enumerate(rotation_removed_plots):
-    p.save_image(f"curve/curve_{i}.png", xmin=-4, xmax=4, ymin=-4, ymax=4)
+    p.save_image(f"/home/sage/asu/2022-SUMMER/atcm-2023-images/curve_heat/curve_{i}.png", xmin=-5, xmax=5, ymin=-5, ymax=5)
 
 for i, p in enumerate(kappa_plots):
-    p.save_image(f"kappa/kappa_{i}.png", ymin=-4, ymax=4)
+    p.save_image(f"/home/sage/asu/2022-SUMMER/atcm-2023-images/kappa_heat/kappa_{i}.png", ymin=-4, ymax=4)
 
 for i, p in enumerate(theta_plots):
-    p.save_image(f"theta/theta_{i}.png", ymin=0, ymax=10)
+    p.save_image(f"/home/sage/asu/2022-SUMMER/atcm-2023-images/theta_heat/theta_{i}.png", ymin=0, ymax=10)
 
 # c1 = 1
 # c2 = 0.2

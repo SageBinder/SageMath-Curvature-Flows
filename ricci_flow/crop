@@ -1,0 +1,7 @@
+cp -r $1 $1_cropped
+cd $1_cropped
+cd gauss_colored_plots
+magick mogrify -gravity Center -crop $2x$3+0+0 *.png
+cd ..
+cd surface_plots
+magick mogrify -gravity Center -crop $2x$3+0+0 *.png

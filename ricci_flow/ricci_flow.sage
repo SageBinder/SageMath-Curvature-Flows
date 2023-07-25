@@ -18,7 +18,7 @@ plot_initial_m = False
 plot_initial_h = False
 plot_initial_R = False
 plot_initial_K = False
-plot_initial_tissot = False
+plot_initial_tissot = True
 
 animate_curve = False
 animate_m = False
@@ -26,7 +26,15 @@ animate_h = False
 animate_R = False
 animate_K = False
 animate_tissot = True
+animate_surface = False
 animate_gauss_colored_surface = False
+
+save_individual_anim_frames = True
+tachyon_antialiasing = True
+tachyon_figsize = [10, 10]
+surface_anim_camera_position = (4, 0, 0)
+surface_anim_look_at = (0, 0, 0)
+surface_anim_zoom = 0.7
 
 center_surface_anim = True
 
@@ -61,11 +69,14 @@ def c(theta, rho, eps=0.1):
 
 # Folder in which all output will be saved.
 # WARNING: The program will overwrite previously saved output.
-folder_name = "./atcm-tissot-2"
+folder_name = "./atcm-2023-frames-curve1"
 print(f"Using folder: {folder_name}")
 if not os.path.exists(folder_name):
     print("Folder did not exist. Creating...")
     os.mkdir(folder_name)
+    os.mkdir(folder_name + "/gauss_colored_plots")
+    os.mkdir(folder_name + "/surface_plots")
+    os.mkdir(folder_name + "/tissot_plots")
 
 def path(name):
     """Join a desired filename with folder_name."""
@@ -371,12 +382,12 @@ def rk4_step(h1, m1, dt, eps=0.01, drho=0.01):
 
 
 # Constants for the first curve from the Rubinstein and Sinclair paper.
-# c3 = 0.766
-# c5 = -0.091
+c3 = 0.766
+c5 = -0.091
 
 # Constants for the second curve from the Rubinstein and Sinclair paper.
-c3 = 0.021
-c5 = 0.598
+# c3 = 0.021
+# c5 = 0.598
 
 # Initial metric as given in the Rubinstein and Sinclair paper.
 h(rho) = 1
@@ -401,10 +412,22 @@ tissot_rho_padding = 0.25
 # In the Tissot visualization, the Tissot ellipses are rescaled at each step so that
 # the ellipses at rho=pi/2 have a constant height (i.e., constant diameter in the rho-direction).
 # tissot_const sets that constant diameter.
-tissot_const = 2.5
 
-tissot_theta_placement_scale = 8
+# tissot vars for curve 2
+# tissot_const = 2.5
+# tissot_theta_placement_scale = 8
+# tissot_rho_placement_scale = 20
+
+# tissot vars for curve 1
+tissot_const = 0.25
+tissot_theta_placement_scale = 50
 tissot_rho_placement_scale = 20
+
+tissot_rho_count = 3
+tissot_theta_count = 3
+
+def save_tissot_img(tissot_plot, img_name):
+    tissot_plot.save(path(img_name), xmin=-tissot_theta_padding, xmax=tissot_theta_placement_scale*2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=tissot_rho_placement_scale*pi + tissot_rho_padding)
 
 if plot_initial_curve:
     xy_plot = parametric_plot((x, y), (x.list()[0][0], x.list()[-1][0]))
@@ -426,7 +449,7 @@ if plot_initial_tissot:
     tissot_plot = Graphics()
     tissot_plot += sum([ellipse((x*tissot_theta_placement_scale, y*tissot_rho_placement_scale), k1*tissot_scale, k2*tissot_scale, theta, axes=False) for x, y, k1, k2, theta in ellipses])
     tissot_plot.set_axes_range(xmin=-tissot_theta_padding, xmax=tissot_theta_placement_scale*2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=tissot_rho_placement_scale*pi + tissot_rho_padding)
-    tissot_plot.save(path("initial_tissot.png"), xmin=-tissot_theta_padding, xmax=2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=pi + tissot_rho_padding)
+    save_tissot_img(tissot_plot, "initial_tissot.png")
 
 
 # Running Ricci flow
@@ -434,8 +457,9 @@ dt = 0.0001
 
 # The simulation will run for at most N timesteps. If it encounters a numerical error earlier, it will terminate and save all animations up until that timestep.
 # N = 1000 + 5000 + 1
-N = 2001
-plot_gap = 235
+N = 2500
+# plot_gap = 235 # plot gap for curve 2
+plot_gap = 400 # plot gap for curve 1
 reparam_gap = 4
 space, dt = np.linspace(0, dt*(N-1), N, retstep=True)
 eps = 0.1
@@ -466,6 +490,7 @@ K_plots = []
 K_sigmoid_plots = []
 tissot_plots = []
 
+plot_count = 0
 for i in range(N):
     try:
         # Switch to smaller timestep (and update other params accordingly) after a certain number of iterations
@@ -494,9 +519,20 @@ for i in range(N):
             
             x_to_anim = spline([(rho, x_val - x(pi/2)) for rho, x_val in x.list()]) if center_surface_anim else x
 
-            revolved_plots.append(parametric_plot3d(revolve(x_to_anim, y), (0, 2*pi), srange, frame=False))
+            if animate_surface:
+                revolved_plots.append(parametric_plot3d(revolve(x_to_anim, y), (0, 2*pi), srange, plot_points=[200, 400], frame=False, aspect_ratio=[1,1,1]))
+                if save_individual_anim_frames:
+                    revolved_plots[-1].save(path(f"surface_plots/surface_plot_{plot_count}.png"),
+                        camera_position=surface_anim_camera_position, look_at=surface_anim_look_at,
+                        zoom=x(pi)*surface_anim_zoom, figsize=tachyon_figsize, antialiasing=tachyon_antialiasing, viewer='tachyon') # zoom=x(pi) is a hack
+
             if animate_gauss_colored_surface:
-                revolved_gauss_colored_plots.append(parametric_plot3d(revolve(x_to_anim, y), (0, 2*pi), srange, plot_points=[20, 80], color=(c, cm), frame=False))
+                revolved_gauss_colored_plots.append(parametric_plot3d(revolve(x_to_anim, y), (0, 2*pi), srange, plot_points=[200, 400], color=(c, cm), frame=False, aspect_ratio=[1,1,1]))
+                if save_individual_anim_frames:
+                    revolved_gauss_colored_plots[-1].save(path(f"gauss_colored_plots/colored_plot_{plot_count}.png"),
+                        camera_position=surface_anim_camera_position, look_at=surface_anim_look_at,
+                        zoom=x(pi)*surface_anim_zoom, figsize=tachyon_figsize, antialiasing=tachyon_antialiasing, viewer='tachyon') # zoom=x(pi) is a hack
+
             if animate_curve:
                 curve_plots.append(parametric_plot((x, y), srange))
             if animate_m:
@@ -511,11 +547,14 @@ for i in range(N):
                 K_sigmoid_plots.append(plot(lambda rho: 1 / (1 + exp(-(y.derivative(rho, order=2) / y(rho)))), (eps, pi-eps), title="sigmoid(K)"))
             if animate_tissot:
                 tissot_scale = tissot_const / m(pi/2)
-                _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1, ucount=3, vcount=7)
+                _, _, ellipses = tissot(make_g(h, m), vrange=(tissot_eps, pi-tissot_eps), sq_len=1, ucount=tissot_rho_count, vcount=tissot_theta_count)
                 tissot_plot = Graphics()
                 tissot_plot += sum([ellipse((x*tissot_theta_placement_scale, y*tissot_rho_placement_scale), k1*tissot_scale, k2*tissot_scale, theta, axes=False, thickness=1) for x, y, k1, k2, theta in ellipses])
                 tissot_plot.set_axes_range(xmin=-tissot_theta_padding, xmax=tissot_theta_placement_scale*2*pi + tissot_theta_padding, ymin=-tissot_rho_padding, ymax=tissot_rho_placement_scale*pi + tissot_rho_padding)
                 tissot_plots.append(tissot_plot)
+                if save_individual_anim_frames:
+                    save_tissot_img(tissot_plot, f"tissot_plots/tissot_{plot_count}.png")
+            plot_count += 1
     except Exception as e:
         print(f"Encountered exception on iteration {i}/{N-1}, t = {dt*i}:")
         print(repr(e))
@@ -533,7 +572,7 @@ def save_animation(plots, label, filename, show_path=True, online=None, use_ffmp
     print(f"Saving {label} animation...")
     start = time.time()
     if online is not None:
-        anim.save(path(filename), show_path=show_path, online=online, use_ffmpeg=use_ffmpeg)
+        anim.save(path(filename), show_path=show_path, online=online, use_ffmpeg=use_ffmpeg, viewer='tachyon')
     else:
         anim.save(path(filename), show_path=show_path, use_ffmpeg=use_ffmpeg)
     end = time.time()
